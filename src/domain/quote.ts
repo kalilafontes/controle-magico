@@ -1,4 +1,4 @@
-export type QuoteStatus = 'Rascunho' | 'Enviado' | 'Aguardando' | 'Aprovado' | 'Recusado'
+export type QuoteStatus = 'Rascunho' | 'Enviado' | 'Aguardando aprovação' | 'Aprovado' | 'Aguardando produção' | 'Aguardando entrega' | 'Entregue' | 'Recusado'
 
 export interface QuoteItem {
   id: string
@@ -17,6 +17,7 @@ export interface Quote {
   validUntil: string
   items: QuoteItem[]
   discount: number
+  total?: number
   receivedAmount: number
   deliveryDate: string
   notes: string
