@@ -25,7 +25,7 @@ export interface Quote {
 
 export function createDraftQuote(): Quote {
   const now = new Date().toISOString()
-  return { id: crypto.randomUUID(), createdAt: now, updatedAt: now, client: '', phone: '', status: 'Rascunho', validUntil: '', items: [], discount: 0, receivedAmount: 0, deliveryDate: '', notes: '' }
+  return { id: crypto.randomUUID(), createdAt: now, updatedAt: now, client: '', phone: '', status: 'Rascunho', validUntil: '', items: [{ id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0 }], discount: 0, receivedAmount: 0, deliveryDate: '', notes: '' }
 }
 
 export function calculatePaymentStatus(total: number, receivedAmount: number) {

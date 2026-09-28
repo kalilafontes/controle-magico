@@ -5,12 +5,12 @@ import { localConfig } from './localConfig'
 import { createSheetsRepository } from './data/sheetsRepository'
 import { createPlanningRepository, type PrintPlan } from './data/planningRepository'
 import { PlanningScreen } from './components/PlanningScreen'
-import { calculatePaymentStatus, calculateQuoteTotals, createDraftQuote, type Quote } from './domain/quote'
+import { calculatePaymentStatus, calculateQuoteTotals, createDraftQuote, type Quote, type QuoteItem } from './domain/quote'
+import { formatMoneyInput, parseMoneyInput } from './domain/money'
 import { getSavedScreen, saveScreen, type Screen } from './navigation'
 import { getPrintProgress } from './printProgress'
 import './styles.css'
 
-const money = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const formatDate = (value: string) => value ? value.split('-').reverse().join('/') : ''
 const isPrinting = (status: string) => ['em impressão', 'imprimindo', 'em andamento'].includes(status.trim().toLowerCase())
 
@@ -81,10 +81,11 @@ export default function App() {
       <label>Cliente<input value={draft.client} onChange={e => setDraft({ ...draft, client: e.target.value })} /></label>
       <label>Status<select value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value as Quote['status'] })}>{['Rascunho', 'Enviado', 'Aguardando aprovação', 'Aprovado', 'Aguardando produção', 'Aguardando entrega', 'Entregue', 'Recusado'].map(s => <option key={s}>{s}</option>)}</select></label>
       <label>Data de entrega<input type="date" value={draft.deliveryDate} onChange={e => setDraft({ ...draft, deliveryDate: e.target.value })} /></label>
-      <label>Descrição do item<input value={draft.items[0]?.description || ''} onChange={e => setDraft({ ...draft, items: [{ id: '1', description: e.target.value, quantity: 1, unitPrice: draft.items[0]?.unitPrice || 0 }] })} /></label>
-      <label>Valor total<input type="number" value={draft.items[0]?.unitPrice || 0} onChange={e => setDraft({ ...draft, items: [{ id: '1', description: draft.items[0]?.description || '', quantity: 1, unitPrice: Number(e.target.value) }] })} /></label>
-      <label>Valor recebido<input type="number" value={draft.receivedAmount} onChange={e => setDraft({ ...draft, receivedAmount: Number(e.target.value) })} /></label>
-      <strong>{money(draft.receivedAmount)} de {money(total)} · {calculatePaymentStatus(total, draft.receivedAmount)}</strong>
+      <QuoteItemsEditor items={draft.items} onChange={items => setDraft({ ...draft, items })} />
+      <MoneyInput label="Desconto" value={draft.discount} onChange={discount => setDraft({ ...draft, discount })} />
+      <QuoteSummary items={draft.items} discount={draft.discount} />
+      <MoneyInput label="Valor recebido" value={draft.receivedAmount} onChange={receivedAmount => setDraft({ ...draft, receivedAmount })} />
+      <strong>{formatMoneyInput(draft.receivedAmount)} de {formatMoneyInput(total)} · {calculatePaymentStatus(total, draft.receivedAmount)}</strong>
       <button onClick={save}>Salvar alterações</button>
     </section>{nav}</main>
   }
@@ -112,6 +113,38 @@ function PrintCard({ plan, onClick }: { plan: PrintPlan; onClick: () => void }) 
   const progress = getPrintProgress(plan.start, plan.end, new Date(), plan.hours, plan.minutes, plan.pause, plan.pauseDuring)
   const running = isPrinting(plan.status)
   return <button className="print-row" onClick={onClick}><span className="print-main"><b>{plan.quantity > 1 ? `${plan.quantity}x ` : ''}{plan.piece || 'Sem nome'}</b><span>{plan.details || 'Sem detalhes'}</span><span className="progress-track"><i style={{ width: `${running ? progress.percent : 0}%` }} /></span></span><span className="print-meta"><b>{running ? `${progress.percent}%` : 'Planejada'}</b><small>◷ {running ? progress.remaining : plan.start || 'Sem horário'}</small></span><span className="arrow">›</span></button>
+}
+
+const emptyItem = (): QuoteItem => ({ id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0 })
+
+export function MoneyInput({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  const [editingValue, setEditingValue] = useState<string | null>(null)
+  return <label>{label}<input aria-label={label} type="text" inputMode="decimal" value={editingValue ?? formatMoneyInput(value)} onFocus={() => setEditingValue(String(value).replace('.', ','))} onChange={event => setEditingValue(event.target.value)} onBlur={event => { onChange(parseMoneyInput(event.target.value)); setEditingValue(null) }} /></label>
+}
+
+export function QuoteSummary({ items, discount }: { items: QuoteItem[]; discount: number }) {
+  const totals = calculateQuoteTotals(items, discount)
+  return <section className="quote-summary" aria-label="Resumo do orçamento"><span>Subtotal: {formatMoneyInput(totals.subtotal)}</span><span>Desconto: {formatMoneyInput(discount)}</span><strong>Total: {formatMoneyInput(totals.total)}</strong></section>
+}
+
+export function QuoteItemsEditor({ items, onChange }: { items: QuoteItem[]; onChange: (items: QuoteItem[]) => void }) {
+  const visibleItems = items.length ? items : [emptyItem()]
+  const updateItem = (index: number, update: Partial<QuoteItem>) => onChange(visibleItems.map((item, current) => current === index ? { ...item, ...update } : item))
+  const removeItem = (index: number) => { if (visibleItems.length > 1) onChange(visibleItems.filter((_, current) => current !== index)) }
+
+  return <section className="product-list" aria-label="Produtos">
+    <div className="section-title"><strong>Produtos</strong></div>
+    {visibleItems.map((item, index) => <article className="product-item" key={item.id}>
+      <div className="product-item-heading"><b>Produto {index + 1}</b>{visibleItems.length > 1 && <button type="button" className="product-remove" aria-label={`Remover produto ${item.description || index + 1}`} onClick={() => removeItem(index)}>Remover</button>}</div>
+      <label>Descrição do produto<input aria-label="Descrição do produto" value={item.description} onChange={event => updateItem(index, { description: event.target.value })} /></label>
+      <div className="product-values">
+        <label>Quantidade<input type="number" min="1" value={item.quantity} onChange={event => updateItem(index, { quantity: Number(event.target.value) })} /></label>
+        <MoneyInput label={`Valor unitário de ${item.description || 'produto'}`} value={item.unitPrice} onChange={unitPrice => updateItem(index, { unitPrice })} />
+      </div>
+      <strong className="item-subtotal">Subtotal: {formatMoneyInput(item.quantity * item.unitPrice)}</strong>
+    </article>)}
+    <button type="button" className="add-product" onClick={() => onChange([...visibleItems, emptyItem()])}>＋ Adicionar produto</button>
+  </section>
 }
 
 function HomeIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V10Z" /></svg> }

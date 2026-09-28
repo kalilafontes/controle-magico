@@ -14,6 +14,11 @@ describe('orçamentos', () => {
     expect(validateQuote(createDraftQuote())).toContain('Cliente é obrigatório.')
   })
 
+  it('cria um primeiro produto estável para o novo orçamento', () => {
+    const draft = createDraftQuote()
+    expect(draft.items).toEqual([expect.objectContaining({ description: '', quantity: 1, unitPrice: 0 })])
+  })
+
   it('informa o progresso do pagamento a partir do valor recebido', () => {
     expect(calculatePaymentStatus(680, 340)).toBe('Parcialmente pago')
     expect(calculatePaymentStatus(680, 680)).toBe('Pago')
