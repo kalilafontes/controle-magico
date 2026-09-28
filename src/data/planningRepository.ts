@@ -21,8 +21,7 @@ export const mapPlanRow = (row: string[], sheetRow: number): PrintPlan => ({
 })
 
 export function createPlanningRepository(token: string) {
-  const id = '1MxuTek5kmQlXgDerypCeJ8IkY2k-PWBtGMsWw8kOOl8'
-  const base = `https://sheets.googleapis.com/v4/spreadsheets/${id}`
+  const base = 'https://sheets.googleapis.com/v4/spreadsheets/1MxuTek5kmQlXgDerypCeJ8IkY2k-PWBtGMsWw8kOOl8'
   const request = async (path: string, init: RequestInit = {}) => {
     const response = await fetch(`${base}${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } })
     if (!response.ok) throw new Error(await response.text())
@@ -32,18 +31,84 @@ export function createPlanningRepository(token: string) {
     const data = await request('/values/Planejamento!A5:M')
     return (data.values || []).map((row: string[], index: number) => mapPlanRow(row, index + 5))
   }
+
+  const getPlanningSheetId = async () => {
+    const data = await request('/?fields=sheets(properties(sheetId,title))')
+    const sheet = data.sheets?.find((item: { properties: { title: string } }) => item.properties.title === 'Planejamento')
+    if (!sheet) throw new Error('A aba Planejamento não foi encontrada.')
+    return sheet.properties.sheetId as number
+  }
+
+  const writePlanInputs = async (plan: PrintPlan) => {
+    await request('/values:batchUpdate', {
+      method: 'POST',
+      body: JSON.stringify({
+        valueInputOption: 'USER_ENTERED',
+        data: [
+          { range: `Planejamento!A${plan.row}:H${plan.row}`, values: [[plan.order, plan.piece, plan.quantity, plan.details, plan.hours, plan.minutes, plan.pause, plan.start]] },
+          { range: `Planejamento!K${plan.row}:M${plan.row}`, values: [[plan.status, plan.pauseDuring, plan.occurrence]] },
+        ],
+      }),
+    })
+  }
+
   const savePlan = async (plan: PrintPlan) => {
-    const values = [[plan.order, plan.piece, plan.quantity, plan.details, plan.hours, plan.minutes, plan.pause, plan.start, plan.end, plan.duration, plan.status, plan.pauseDuring, plan.occurrence]]
-    const path = plan.row ? `/values/Planejamento!A${plan.row}:M${plan.row}?valueInputOption=USER_ENTERED` : '/values/Planejamento!A:M:append?valueInputOption=USER_ENTERED'
-    await request(path, { method: plan.row ? 'PUT' : 'POST', body: JSON.stringify({ values }) })
+    if (plan.row) return writePlanInputs(plan)
+
+    const current = await getPlans()
+    const ordered = assignPlanningOrder(makeSequentialSchedule([...current, plan]))
+    const inserted = ordered.find(item => !item.row)
+    if (!inserted) throw new Error('Não foi possível preparar a nova impressão.')
+
+    const insertAt = ordered.find((item, index) => index > ordered.indexOf(inserted) && item.row)?.row || (current.at(-1)?.row || 4) + 1
+    const sheetId = await getPlanningSheetId()
+    const formulaSourceRow = current.length ? (insertAt <= (current.at(-1)?.row || 0) ? insertAt + 1 : insertAt - 1) : null
+    const requests: object[] = [{ insertDimension: { range: { sheetId, dimension: 'ROWS', startIndex: insertAt - 1, endIndex: insertAt } } }]
+    if (formulaSourceRow) {
+      requests.push({ copyPaste: {
+        source: { sheetId, startRowIndex: formulaSourceRow - 1, endRowIndex: formulaSourceRow, startColumnIndex: 8, endColumnIndex: 10 },
+        destination: { sheetId, startRowIndex: insertAt - 1, endRowIndex: insertAt, startColumnIndex: 8, endColumnIndex: 10 },
+        pasteType: 'PASTE_FORMULA', pasteOrientation: 'NORMAL',
+      } })
+    }
+    await request('/:batchUpdate', { method: 'POST', body: JSON.stringify({ requests }) })
+
+    const insertedWithRow = { ...inserted, row: insertAt }
+    await writePlanInputs(insertedWithRow)
+
+    const originalByRow = new Map(current.map(item => [item.row, item]))
+    const data = ordered.flatMap(item => {
+      if (!item.row || item.status.trim().toLowerCase() !== 'planejado') return []
+      const original = originalByRow.get(item.row)
+      if (!original) return []
+      const row = item.row >= insertAt ? item.row + 1 : item.row
+      const updates = []
+      if (original.order !== item.order) updates.push({ range: `Planejamento!A${row}`, values: [[item.order]] })
+      if (original.start !== item.start) updates.push({ range: `Planejamento!H${row}`, values: [[item.start]] })
+      return updates
+    })
+    if (data.length) await request('/values:batchUpdate', { method: 'POST', body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }) })
+  }
+  const deletePlan = async (row: number) => {
+    const sheetId = await getPlanningSheetId()
+    await request('/:batchUpdate', {
+      method: 'POST',
+      body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: row - 1, endIndex: row } } }] }),
+    })
   }
   const synchronizeSchedule = async (plans: PrintPlan[]) => {
     const ordered = assignPlanningOrder(makeSequentialSchedule(plans))
-    const data = ordered.filter(plan => plan.row).flatMap(plan => [
-      { range: `Planejamento!A${plan.row}`, values: [[plan.order]] },
-      { range: `Planejamento!H${plan.row}:I${plan.row}`, values: [[plan.start, plan.end]] },
-    ])
-    if (data.length) await request('/values:batchUpdate', { method: 'POST', body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }) })
+    const originalByRow = new Map(plans.map(plan => [plan.row, plan]))
+    const data = ordered.filter(plan => plan.row && plan.status === 'Planejado').flatMap(plan => {
+      const original = originalByRow.get(plan.row)
+      const updates = []
+      if (original?.order !== plan.order) updates.push({ range: `Planejamento!A${plan.row}`, values: [[plan.order]] })
+      if (original?.start !== plan.start) updates.push({ range: `Planejamento!H${plan.row}`, values: [[plan.start]] })
+      return updates
+    })
+    if (!data.length) return false
+    await request('/values:batchUpdate', { method: 'POST', body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }) })
+    return true
   }
-  return { getPlans, savePlan, synchronizeSchedule }
+  return { getPlans, savePlan, deletePlan, synchronizeSchedule }
 }

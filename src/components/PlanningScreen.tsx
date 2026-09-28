@@ -46,10 +46,19 @@ export function PlanningScreen({ token, onBack, onUpdated }: { token: string; on
   const [plans, setPlans] = useState<PrintPlan[]>([])
   const [tab, setTab] = useState<Tab>('andamento')
   const [draft, setDraft] = useState<PrintPlan | null>(null)
+  const [planToDelete, setPlanToDelete] = useState<PrintPlan | null>(null)
   const [error, setError] = useState('')
-  const load = () => repo.getPlans().then(setPlans).catch((e: unknown) => setError(`Não foi possível acessar o planejamento: ${e instanceof Error ? e.message : 'erro desconhecido'}`))
+  const load = async (synchronize = false) => {
+    try {
+      const current = await repo.getPlans()
+      if (synchronize && await repo.synchronizeSchedule(current)) return load()
+      setPlans(current)
+    } catch (e) {
+      setError(`Não foi possível acessar o planejamento: ${e instanceof Error ? e.message : 'erro desconhecido'}`)
+    }
+  }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(true) }, [])
 
   const visible = useMemo(() => sortPlansForTab(plans, tab), [plans, tab])
   const active = plans.find(p => statusMap.andamento.includes(p.status))
@@ -61,10 +70,29 @@ export function PlanningScreen({ token, onBack, onUpdated }: { token: string; on
     load()
     onUpdated?.()
   }
+  const remove = async () => {
+    if (!planToDelete?.row) return
+    try {
+      await repo.deletePlan(planToDelete.row)
+      await repo.synchronizeSchedule(await repo.getPlans())
+      setPlanToDelete(null)
+      setDraft(null)
+      load()
+      onUpdated?.()
+    } catch (e) {
+      setError(`Não foi possível apagar o planejamento: ${e instanceof Error ? e.message : 'erro desconhecido'}`)
+    }
+  }
+
+  const deletionDialog = planToDelete && <div className="delete-dialog-backdrop"><section className="delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+    <h2 id="delete-title">Apagar {planToDelete.piece}?</h2>
+    <p>Essa impressão será removida do planejamento.</p>
+    <div className="delete-dialog-actions"><button className="delete-cancel" onClick={() => setPlanToDelete(null)}>Cancelar</button><button className="delete-confirm" onClick={remove}>Apagar</button></div>
+  </section></div>
 
   if (draft) {
     const predictedEnd = estimateEnd(draft)
-    return <section className="form">
+    return <><section className="form">
       <button className="back" onClick={() => setDraft(null)}>← Voltar para planejamento</button>
       <h1>{draft.row ? 'Editar impressão' : 'Nova impressão'}</h1>
       <p className="estimate">A ordem será definida automaticamente pelo horário de início.</p>
@@ -80,16 +108,19 @@ export function PlanningScreen({ token, onBack, onUpdated }: { token: string; on
       <label>Início<input value={draft.start} onChange={e => setDraft({ ...draft, start: e.target.value })} /></label>
       <label>Status<select value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value })}>{['Planejado', 'Em impressão', 'Pausado', 'Concluído', 'Cancelado'].map(x => <option key={x}>{x}</option>)}</select></label>
       <button onClick={save}>Salvar planejamento</button>
-    </section>
+      {draft.row && <button onClick={() => setPlanToDelete(draft)}>Apagar planejamento</button>}
+    </section>{deletionDialog}</>
   }
 
-  return <section>
+  return <><section>
     <button className="back" onClick={onBack}>← Voltar para orçamentos</button>
     <h1>Planejamento de impressão</h1>
     {error && <p className="message">{error}</p>}
     {active && <button className="print-now" onClick={() => setDraft(active)}><small>IMPRIMINDO AGORA</small><b>{active.quantity > 1 ? `${active.quantity}x ` : ''}{active.piece}</b><span>{active.details} · termina {active.end || estimateEnd(active) || '—'}</span></button>}
     <button onClick={() => setDraft(empty())}>＋ Nova impressão</button>
     <div className="plan-tabs">{([['andamento', 'Em andamento'], ['proximas', 'Próximas'], ['pausadas', 'Pausadas'], ['concluidas', 'Concluídas']] as [Tab, string][]).map(([id, label]) => <button className={tab === id ? 'selected' : ''} onClick={() => setTab(id)} key={id}>{label}</button>)}</div>
-    {visible.length ? visible.map(p => <button className={`quote plan-card ${tab}`} key={p.row} onClick={() => setDraft(p)}><b>{p.quantity > 1 ? `${p.quantity}x ` : ''}{p.piece}</b><span>{p.details} · início {p.start || '—'} · fim {p.end || estimateEnd(p) || '—'}</span><span>{p.duration || `${p.hours}h ${p.minutes}min`} · {p.status}</span></button>) : <p className="empty">Nenhuma impressão nesta etapa.</p>}
-  </section>
+    {visible.length ? visible.map(p => <article className="plan-item" key={p.row}><button className={`quote plan-card ${tab}`} onClick={() => setDraft(p)}><b>{p.quantity > 1 ? `${p.quantity}x ` : ''}{p.piece}</b><span>{p.details} · início {p.start || '—'} · fim {p.end || estimateEnd(p) || '—'}</span><span>{p.duration || `${p.hours}h ${p.minutes}min`} · {p.status}</span></button>{p.row && <button className="plan-delete" aria-label={`Apagar ${p.piece}`} onClick={() => setPlanToDelete(p)}><TrashIcon /></button>}</article>) : <p className="empty">Nenhuma impressão nesta etapa.</p>}
+  </section>{deletionDialog}</>
 }
+
+function TrashIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M9 7l1-3h4l1 3M6 7l1 13h10l1-13" /></svg> }
