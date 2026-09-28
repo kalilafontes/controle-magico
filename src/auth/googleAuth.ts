@@ -9,20 +9,20 @@ export function toAuthErrorMessage(status: number) {
 }
 
 export function getSavedToken() {
-  const saved = sessionStorage.getItem('orcamentos-token')
+  const saved = localStorage.getItem('orcamentos-token') || sessionStorage.getItem('orcamentos-token')
   if (!saved) return null
   const token = JSON.parse(saved) as { value: string; expiresAt: number }
-  if (token.expiresAt <= Date.now()) return null
+  if (token.expiresAt <= Date.now()) { localStorage.removeItem('orcamentos-token'); sessionStorage.removeItem('orcamentos-token'); return null }
   return token.value
 }
 
-export function signInWithGoogle(clientId: string): Promise<string> {
+export function signInWithGoogle(clientId: string, silent = false): Promise<string> {
   return new Promise((resolve, reject) => {
     const begin = () => window.google?.accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: 'https://www.googleapis.com/auth/spreadsheets',
-      callback: (response: { access_token?: string; expires_in?: number; error?: string }) => { if (!response.access_token) return reject(new Error(response.error || 'Login cancelado')); sessionStorage.setItem('orcamentos-token', JSON.stringify({ value: response.access_token, expiresAt: Date.now() + (response.expires_in || 3600) * 1000 })); resolve(response.access_token) },
-    }).requestAccessToken({ prompt: 'consent' })
+      callback: (response: { access_token?: string; expires_in?: number; error?: string }) => { if (!response.access_token) return reject(new Error(response.error || 'Login cancelado')); const saved = JSON.stringify({ value: response.access_token, expiresAt: Date.now() + (response.expires_in || 3600) * 1000 }); localStorage.setItem('orcamentos-token', saved); sessionStorage.setItem('orcamentos-token', saved); resolve(response.access_token) },
+    }).requestAccessToken({ prompt: silent ? '' : 'consent' })
     if (window.google) return begin()
     const script = document.createElement('script')
     script.src = 'https://accounts.google.com/gsi/client'
