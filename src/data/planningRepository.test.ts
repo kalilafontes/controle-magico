@@ -21,6 +21,14 @@ describe('createPlanningRepository', () => {
     fetchMock.mockRestore()
   })
 
+  it('preserva o status 401 quando o token expira', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: false, status: 401, text: async () => 'token expirado' } as Response)
+
+    await expect(createPlanningRepository('token').getPlans()).rejects.toMatchObject({ status: 401 })
+
+    fetchMock.mockRestore()
+  })
+
   it('remove fisicamente apenas a linha selecionada', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(response({ sheets: [{ properties: { sheetId: 42, title: 'Planejamento' } }] }))

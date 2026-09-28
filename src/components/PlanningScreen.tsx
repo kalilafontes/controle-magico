@@ -41,20 +41,24 @@ const estimateEnd = (plan: PrintPlan) => {
   return fullDate ? date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).replace(',', '') : date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
-export function PlanningScreen({ token, onBack, onUpdated }: { token: string; onBack: () => void; onUpdated?: () => void }) {
+export function PlanningScreen({ token, onBack, onUpdated, onSessionExpired }: { token: string; onBack: () => void; onUpdated?: () => void; onSessionExpired?: () => void }) {
   const repo = createPlanningRepository(token)
   const [plans, setPlans] = useState<PrintPlan[]>([])
   const [tab, setTab] = useState<Tab>('andamento')
   const [draft, setDraft] = useState<PrintPlan | null>(null)
   const [planToDelete, setPlanToDelete] = useState<PrintPlan | null>(null)
   const [error, setError] = useState('')
+  const handleError = (prefix: string, e: unknown) => {
+    if (e instanceof Error && (e as Error & { status?: number }).status === 401) return onSessionExpired?.()
+    setError(`${prefix}: ${e instanceof Error ? e.message : 'erro desconhecido'}`)
+  }
   const load = async (synchronize = false) => {
     try {
       const current = await repo.getPlans()
       if (synchronize && await repo.synchronizeSchedule(current)) return load()
       setPlans(current)
     } catch (e) {
-      setError(`Não foi possível acessar o planejamento: ${e instanceof Error ? e.message : 'erro desconhecido'}`)
+      handleError('Não foi possível acessar o planejamento', e)
     }
   }
 
@@ -64,11 +68,15 @@ export function PlanningScreen({ token, onBack, onUpdated }: { token: string; on
   const active = plans.find(p => statusMap.andamento.includes(p.status))
   const save = async () => {
     if (!draft?.piece) return
-    await repo.savePlan({ ...draft, end: estimateEnd(draft) || draft.end })
-    await repo.synchronizeSchedule(await repo.getPlans())
-    setDraft(null)
-    load()
-    onUpdated?.()
+    try {
+      await repo.savePlan({ ...draft, end: estimateEnd(draft) || draft.end })
+      await repo.synchronizeSchedule(await repo.getPlans())
+      setDraft(null)
+      load()
+      onUpdated?.()
+    } catch (e) {
+      handleError('Não foi possível salvar o planejamento', e)
+    }
   }
   const remove = async () => {
     if (!planToDelete?.row) return
@@ -80,7 +88,7 @@ export function PlanningScreen({ token, onBack, onUpdated }: { token: string; on
       load()
       onUpdated?.()
     } catch (e) {
-      setError(`Não foi possível apagar o planejamento: ${e instanceof Error ? e.message : 'erro desconhecido'}`)
+      handleError('Não foi possível apagar o planejamento', e)
     }
   }
 

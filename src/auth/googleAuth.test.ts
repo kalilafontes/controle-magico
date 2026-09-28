@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { getSavedToken, toAuthErrorMessage } from './googleAuth'
+import { clearSavedToken, getSavedToken, toAuthErrorMessage } from './googleAuth'
 
 describe('mensagens de autenticação', () => {
   beforeEach(() => { sessionStorage.clear(); localStorage.clear() })
@@ -19,5 +19,15 @@ describe('mensagens de autenticação', () => {
   it('mantém o token válido depois que a aba é reaberta', () => {
     localStorage.setItem('orcamentos-token', JSON.stringify({ value: 'persistente', expiresAt: Date.now() + 60_000 }))
     expect(getSavedToken()).toBe('persistente')
+  })
+
+  it('remove o token salvo ao encerrar a sessão', () => {
+    sessionStorage.setItem('orcamentos-token', 'sessão')
+    localStorage.setItem('orcamentos-token', 'persistente')
+
+    clearSavedToken()
+
+    expect(sessionStorage.getItem('orcamentos-token')).toBeNull()
+    expect(localStorage.getItem('orcamentos-token')).toBeNull()
   })
 })

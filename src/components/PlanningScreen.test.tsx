@@ -59,6 +59,16 @@ describe('PlanningScreen', () => {
     expect(screen.getByText(/Previsão de término:/)).toHaveTextContent('12:08')
   })
 
+  it('encerra a sessão quando o planejamento retorna 401', async () => {
+    getPlans.mockRejectedValue(Object.assign(new Error('token expirado'), { status: 401 }))
+    const onSessionExpired = vi.fn()
+
+    render(<PlanningScreen token="token" onBack={vi.fn()} onSessionExpired={onSessionExpired} />)
+
+    await waitFor(() => expect(onSessionExpired).toHaveBeenCalledOnce())
+    expect(screen.queryByText(/token expirado/)).not.toBeInTheDocument()
+  })
+
   it('cancela a exclusão aberta pela lixeira da lista', async () => {
     getPlans.mockResolvedValue([planned])
     render(<PlanningScreen token="token" onBack={vi.fn()} />)

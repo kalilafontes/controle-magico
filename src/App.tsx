@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getAppConfig } from './config'
-import { getSavedToken, signInWithGoogle } from './auth/googleAuth'
+import { clearSavedToken, getSavedToken, signInWithGoogle } from './auth/googleAuth'
 import { localConfig } from './localConfig'
 import { createSheetsRepository } from './data/sheetsRepository'
 import { createPlanningRepository, type PrintPlan } from './data/planningRepository'
@@ -16,6 +16,7 @@ const isPrinting = (status: string) => ['em impressão', 'imprimindo', 'em andam
 
 export default function App() {
   const [token, setToken] = useState(() => getSavedToken() || '')
+  const [sessionExpired, setSessionExpired] = useState(false)
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [plans, setPlans] = useState<PrintPlan[]>([])
   const [draft, setDraft] = useState<Quote>(createDraftQuote())
@@ -28,9 +29,9 @@ export default function App() {
   const loadPlans = () => token && createPlanningRepository(token).getPlans().then(setPlans).catch(() => undefined)
 
   useEffect(() => {
-    if (token) return
+    if (token || sessionExpired) return
     signInWithGoogle(config.googleClientId, true).then(setToken).catch(() => undefined)
-  }, [])
+  }, [token, sessionExpired])
 
   useEffect(() => {
     if (!repository || !token) return
@@ -42,6 +43,7 @@ export default function App() {
     try {
       const access = await signInWithGoogle(config.googleClientId)
       setToken(access)
+      setSessionExpired(false)
       setQuotes(await createSheetsRepository(config.spreadsheetId, access).getQuotes())
       setPlans(await createPlanningRepository(access).getPlans())
     } catch (e) {
@@ -50,6 +52,7 @@ export default function App() {
   }
 
   const openNewQuote = () => { setDraft(createDraftQuote()); setNewQuote(true); goTo('quotes') }
+  const expireSession = () => { clearSavedToken(); setToken(''); setQuotes([]); setPlans([]); setSessionExpired(true); setMessage('') }
   const editQuote = (quote: Quote) => { setDraft(quote); setNewQuote(true); goTo('quotes') }
   const save = async () => {
     try {
@@ -70,7 +73,7 @@ export default function App() {
   const todayPrints = plans.filter(plan => isPrinting(plan.status) || plan.status === 'Planejado').sort((a, b) => Number(isPrinting(b.status)) - Number(isPrinting(a.status))).slice(0, 3)
   const nav = <nav className="bottom-nav"><button className={screen === 'home' ? 'active' : ''} onClick={() => { setNewQuote(false); goTo('home') }}><i><HomeIcon /></i><span>Início</span></button><button className={screen === 'quotes' ? 'active' : ''} onClick={() => { setNewQuote(false); goTo('quotes') }}><i><QuoteIcon /></i><span>Orçamentos</span></button><button className={screen === 'planning' ? 'active' : ''} onClick={() => { setNewQuote(false); goTo('planning') }}><i><PrintIcon /></i><span>Produção</span></button></nav>
 
-  if (screen === 'planning') return <main className="app app-with-nav"><p className="brand">CONTROLE</p><PlanningScreen token={token} onBack={() => goTo('home')} onUpdated={loadPlans} />{nav}</main>
+  if (screen === 'planning') return <main className="app app-with-nav"><p className="brand">CONTROLE</p><PlanningScreen token={token} onBack={() => goTo('home')} onUpdated={loadPlans} onSessionExpired={expireSession} />{nav}</main>
 
   if (newQuote) {
     const total = calculateQuoteTotals(draft.items, draft.discount).total

@@ -12,8 +12,13 @@ export function getSavedToken() {
   const saved = localStorage.getItem('orcamentos-token') || sessionStorage.getItem('orcamentos-token')
   if (!saved) return null
   const token = JSON.parse(saved) as { value: string; expiresAt: number }
-  if (token.expiresAt <= Date.now()) { localStorage.removeItem('orcamentos-token'); sessionStorage.removeItem('orcamentos-token'); return null }
+  if (token.expiresAt <= Date.now()) { clearSavedToken(); return null }
   return token.value
+}
+
+export function clearSavedToken() {
+  localStorage.removeItem('orcamentos-token')
+  sessionStorage.removeItem('orcamentos-token')
 }
 
 export function signInWithGoogle(clientId: string, silent = false): Promise<string> {

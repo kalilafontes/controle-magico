@@ -24,7 +24,7 @@ export function createPlanningRepository(token: string) {
   const base = 'https://sheets.googleapis.com/v4/spreadsheets/1MxuTek5kmQlXgDerypCeJ8IkY2k-PWBtGMsWw8kOOl8'
   const request = async (path: string, init: RequestInit = {}) => {
     const response = await fetch(`${base}${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } })
-    if (!response.ok) throw new Error(await response.text())
+    if (!response.ok) throw Object.assign(new Error(await response.text()), { status: response.status })
     return response.json()
   }
   const getPlans = async (): Promise<PrintPlan[]> => {
