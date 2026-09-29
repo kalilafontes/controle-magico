@@ -13,4 +13,10 @@ describe('getPrintProgress', () => {
 
     expect(progress).toEqual({ percent: 46, remaining: '~ 1h 10min' })
   })
+
+  it('ignora uma previsão anterior ao início e usa a duração da impressão', () => {
+    const progress = getPrintProgress('28/09/2026 19:20', '28/09/2026 17:30', new Date(2026, 8, 28, 20, 20), 2, 45)
+
+    expect(progress).toEqual({ percent: 36, remaining: '~ 1h 45min' })
+  })
 })

@@ -1,0 +1,502 @@
+.sidebar-toggle {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .plan-status.concluido {
+    background: #e4f6e7;
+    color: #24733a;
+  }
+
+  .plan-status.cancelado {
+    background: #ececef;
+    color: #62616a;
+  }
+}
+
+.quotes-desktop-view {
+  display: none;
+}
+
+.plan-status {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #e4f3ff;
+  color: #205a95;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.plan-status.em-impressao,
+.plan-status.imprimindo {
+  background: #fff0c6;
+  color: #8b5b00;
+}
+
+.plan-status.pausado {
+  background: #fde0ed;
+  color: #b2215a;
+}
+
+.plan-status.concluido {
+  background: #e4f6e7 !important;
+  color: #24733a !important;
+}
+
+.plan-status.cancelado {
+  background: #ececef !important;
+  color: #62616a !important;
+}
+
+.chip.status-draft {
+  background: #ececef;
+  color: #62616a;
+}
+
+.chip.status-sent {
+  background: #eee8ff;
+  color: #6542a0;
+}
+
+.chip.status-approval {
+  background: #fff0c6;
+  color: #8b5b00;
+}
+
+.chip.status-approved {
+  background: #e4f3ff;
+  color: #205a95;
+}
+
+.chip.status-production {
+  background: #fde0ed;
+  color: #b2215a;
+}
+
+.chip.status-delivery {
+  background: #ffe8d0;
+  color: #a44c08;
+}
+
+.chip.status-delivered {
+  background: #e4f6e7;
+  color: #24733a;
+}
+
+.chip.status-rejected {
+  background: #fde2e2;
+  color: #ae3030;
+}
+
+.chip.payment.payment-unpaid {
+  background: #f9e1f1;
+  color: #a51d61;
+}
+
+.chip.payment.payment-partial {
+  background: #fff0c6;
+  color: #8b5b00;
+}
+
+.chip.payment.payment-paid {
+  background: #e4f6e7;
+  color: #24733a;
+}
+
+.planning-desktop-header,
+.planning-desktop-list {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .app {
+    transition: padding-left 0.2s ease;
+  }
+
+  .bottom-nav {
+    flex-direction: column;
+    transition: width 0.2s ease, padding 0.2s ease;
+  }
+
+  .bottom-nav:before {
+    transition: left 0.2s ease;
+  }
+
+  .sidebar-toggle {
+    position: absolute;
+    top: 19px;
+    right: 18px;
+    display: flex !important;
+    width: auto !important;
+    margin: 0;
+    padding: 7px !important;
+    color: #805b6d !important;
+  }
+
+  .sidebar-toggle i {
+    width: 28px !important;
+  }
+
+  .sidebar-toggle span {
+    display: none !important;
+  }
+
+  .bottom-nav.collapsed {
+    width: 82px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .bottom-nav.collapsed:before {
+    content: 'C';
+    left: 31px;
+  }
+
+  .bottom-nav.collapsed button:not(.sidebar-toggle) {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .bottom-nav.collapsed button:not(.sidebar-toggle) span {
+    display: none;
+  }
+
+  .bottom-nav.collapsed .sidebar-toggle {
+    right: 25px;
+  }
+
+  body:has(.bottom-nav.collapsed) .app {
+    padding-left: calc(82px + 5vw);
+  }
+
+  .quotes-mobile-view {
+    display: none;
+  }
+
+  .quotes-desktop-view {
+    display: block;
+    max-width: 1420px;
+  }
+
+  .quotes-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+    margin-bottom: 30px;
+  }
+
+  .quotes-header h1 {
+    margin: 0;
+    font-size: 46px;
+    letter-spacing: -0.04em;
+  }
+
+  .quotes-header p {
+    margin: 6px 0 0;
+    font-size: 18px;
+  }
+
+  .quotes-header .new-quote {
+    width: 270px;
+    flex: none;
+    margin: 0;
+  }
+
+  .quotes-workspace {
+    display: grid;
+    grid-template-columns: minmax(360px, 1fr) minmax(510px, 1.04fr);
+    gap: 22px;
+    align-items: start;
+  }
+
+  .quotes-workspace:not(.has-selection) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .quote-list-panel,
+  .quote-details-panel {
+    min-height: 650px;
+    padding: 22px;
+    border: 1px solid #f0dce6;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 10px 32px rgba(133, 45, 85, 0.07);
+  }
+
+  .quote-list-panel .section-title {
+    margin-bottom: 14px;
+  }
+
+  .quote-list-panel .section-title strong,
+  .quote-details-title {
+    font-size: 24px;
+  }
+
+  .quote-list-panel .quote-item .home-quote {
+    min-height: 108px;
+    margin: 10px 0;
+    padding: 17px 84px 17px 17px;
+  }
+
+  .quote-list-panel .quote-item.selected .home-quote {
+    border-color: #e94486;
+    background: #fff8fb;
+    box-shadow: inset 0 0 0 1px #f4bdd4;
+  }
+
+  .quote-list-panel .quote-info b {
+    font-size: 18px;
+  }
+
+  .quote-total {
+    margin-right: 15px;
+    color: #321426;
+    font-size: 16px;
+    white-space: nowrap;
+  }
+
+  .quote-details-title {
+    margin: 0 0 14px;
+  }
+
+  .quote-details-panel .empty {
+    padding: 120px 20px;
+  }
+
+  .quote-editor-form {
+    max-width: none;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .quote-main-fields {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr 1fr;
+    gap: 12px;
+  }
+
+  .quote-main-fields label,
+  .quote-payment-fields > label {
+    margin-top: 0;
+  }
+
+  .quote-editor-form .product-list {
+    margin: 18px 0;
+    padding: 14px;
+    border: 1px solid #f0dce6;
+    border-radius: 14px;
+  }
+
+  .quote-editor-form .product-list .section-title strong {
+    font-size: 19px;
+  }
+
+  .quote-editor-form .product-item {
+    margin: 10px 0;
+    padding: 13px;
+  }
+
+  .quote-editor-form .product-item label {
+    margin: 10px 0;
+  }
+
+  .quote-payment-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 18px;
+    align-items: end;
+  }
+
+  .quote-payment-fields .quote-summary {
+    margin: 0;
+  }
+
+  .payment-status {
+    padding: 13px;
+    border-radius: 10px;
+    background: #fde8f1;
+    color: #b2215a;
+    font-size: 14px;
+  }
+
+  .quote-editor-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 18px;
+  }
+
+  .quote-editor-actions button {
+    width: auto;
+    min-width: 150px;
+    margin: 0;
+  }
+
+  .planning-mobile-header,
+  .planning-mobile-list {
+    display: none;
+  }
+
+  .planning-screen {
+    max-width: 1420px;
+  }
+
+  .planning-desktop-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+    margin-bottom: 30px;
+  }
+
+  .planning-desktop-header h1 {
+    margin: 0;
+    font-size: 46px;
+    letter-spacing: -0.04em;
+  }
+
+  .planning-desktop-header p {
+    margin: 6px 0 0;
+    font-size: 18px;
+  }
+
+  .planning-desktop-header .new-quote {
+    width: 280px;
+    flex: none;
+    margin: 0;
+  }
+
+  .planning-desktop-error {
+    margin-bottom: 20px;
+  }
+
+  .planning-workspace {
+    display: grid;
+    grid-template-columns: minmax(360px, 0.9fr) minmax(590px, 1.2fr);
+    gap: 22px;
+    align-items: start;
+  }
+
+  .planning-workspace:not(.has-selection) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .planning-list-panel,
+  .planning-details-panel {
+    min-height: 650px;
+    padding: 22px;
+    border: 1px solid #f0dce6;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 10px 32px rgba(133, 45, 85, 0.07);
+  }
+
+  .planning-list-panel h2,
+  .planning-details-panel > h2 {
+    margin: 0 0 14px;
+    font-size: 24px;
+  }
+
+  .planning-desktop-list {
+    display: block;
+  }
+
+  .planning-list-panel .plan-card {
+    min-height: 108px;
+    margin: 10px 0;
+    padding: 16px 58px 16px 17px;
+  }
+
+  .planning-list-panel .plan-item.selected .plan-card {
+    border-color: #e94486;
+    background: #fff8fb;
+    box-shadow: inset 0 0 0 1px #f4bdd4;
+  }
+
+  .planning-list-panel .plan-card b {
+    font-size: 18px;
+  }
+
+  .planning-list-panel .plan-card span,
+  .planning-list-panel .plan-card small {
+    display: block;
+    margin-top: 7px;
+    color: #805b6d;
+    font-size: 13px;
+  }
+
+  .plan-status {
+    display: inline-block;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: #e4f3ff;
+    color: #205a95;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 700;
+  }
+
+  .plan-status.em-impressao,
+  .plan-status.imprimindo {
+    background: #fff0c6;
+    color: #8b5b00;
+  }
+
+  .plan-status.pausado {
+    background: #fde0ed;
+    color: #b2215a;
+  }
+
+  .planning-details-panel > h2 {
+    margin-bottom: 14px;
+  }
+
+  .planning-editor-form {
+    max-width: none;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .planning-editor-form > label {
+    margin: 12px 0;
+  }
+
+  .planning-duration-fields,
+  .planning-footer-fields {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .planning-footer-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .planning-duration-fields label,
+  .planning-footer-fields label {
+    margin: 12px 0;
+  }
+
+  .planning-editor-form .estimate {
+    margin: 14px 0;
+  }
+
+  .planning-editor-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 18px;
+  }
+
+  .planning-editor-actions button {
+    width: auto;
+    min-width: 150px;
+    margin: 0;
+  }
+}

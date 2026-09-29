@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
-import { MoneyInput, QuoteItemsEditor, QuoteSummary } from './App'
+import { describe, expect, it, vi } from 'vitest'
+import { getQuoteWorkspaceClass, getSaveMessage, MoneyInput, Navigation, QuoteItemsEditor, QuoteList, QuoteSummary } from './App'
 import type { QuoteItem } from './domain/quote'
 
 function EditorHarness() {
@@ -62,5 +62,50 @@ describe('QuoteSummary', () => {
     expect(screen.getByText('Subtotal: R$ 65,00')).toBeInTheDocument()
     expect(screen.getByText('Desconto: R$ 10,00')).toBeInTheDocument()
     expect(screen.getByText('Total: R$ 55,00')).toBeInTheDocument()
+  })
+})
+
+describe('getSaveMessage', () => {
+  it('mostra o motivo devolvido pela planilha ao salvar', () => {
+    expect(getSaveMessage(new Error('Unable to parse range: Itens do Orçamento!A:E'))).toBe('Não foi possível salvar: Unable to parse range: Itens do Orçamento!A:E')
+  })
+})
+
+describe('QuoteList', () => {
+  it('oferece uma lixeira separada para pedir a exclusão do orçamento', async () => {
+    const user = userEvent.setup()
+    const onDelete = vi.fn()
+    const { container } = render(<QuoteList quotes={[{
+      id: 'orc-1', createdAt: '', updatedAt: '', client: 'Kalila', phone: '', status: 'Rascunho', validUntil: '', items: [], discount: 0, total: 0, receivedAmount: 0, deliveryDate: '', notes: '',
+    }]} onEdit={() => undefined} onDelete={onDelete} />)
+
+    await user.click(screen.getByRole('button', { name: 'Apagar orçamento de Kalila' }))
+    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'orc-1' }))
+  })
+
+  it('marca o orçamento selecionado na lista do painel', () => {
+    const { container } = render(<QuoteList quotes={[{
+      id: 'orc-1', createdAt: '', updatedAt: '', client: 'Kalila', phone: '', status: 'Rascunho', validUntil: '', items: [], discount: 0, total: 0, receivedAmount: 0, deliveryDate: '', notes: '',
+    }]} onEdit={() => undefined} onDelete={() => undefined} selectedId="orc-1" />)
+
+    expect(container.querySelector('.quote.home-quote')).toHaveAttribute('aria-current', 'true')
+  })
+})
+
+describe('Navigation', () => {
+  it('permite recolher a sidebar pelo botão de menu', async () => {
+    const user = userEvent.setup()
+    const onCollapsedChange = vi.fn()
+    render(<Navigation screen="home" onNavigate={() => undefined} collapsed={false} onCollapsedChange={onCollapsedChange} />)
+
+    await user.click(screen.getByRole('button', { name: 'Recolher menu' }))
+    expect(onCollapsedChange).toHaveBeenCalledWith(true)
+  })
+})
+
+describe('getQuoteWorkspaceClass', () => {
+  it('expande a lista quando nenhum orçamento está selecionado', () => {
+    expect(getQuoteWorkspaceClass(false)).toBe('quotes-workspace')
+    expect(getQuoteWorkspaceClass(true)).toBe('quotes-workspace has-selection')
   })
 })

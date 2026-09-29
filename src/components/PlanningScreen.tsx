@@ -24,6 +24,11 @@ export const sortPlansForTab = (plans: PrintPlan[], tab: Tab) => {
   return tab === 'concluidas' ? [...filtered].sort((a, b) => dateValue(b.end) - dateValue(a.end)) : filtered
 }
 
+export const sortPlansForDesktop = (plans: PrintPlan[]) => {
+  const priority: Record<string, number> = { 'em impressão': 0, imprimindo: 0, planejado: 1, pausado: 2, concluído: 3, cancelado: 3 }
+  return [...plans].sort((a, b) => (priority[a.status.trim().toLowerCase()] ?? 4) - (priority[b.status.trim().toLowerCase()] ?? 4) || dateValue(a.start) - dateValue(b.start))
+}
+
 const estimateEnd = (plan: PrintPlan) => {
   const fullDate = plan.start.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/)
   const timeOnly = plan.start.match(/^(\d{2}):(\d{2})$/)
@@ -41,8 +46,31 @@ const estimateEnd = (plan: PrintPlan) => {
   return fullDate ? date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).replace(',', '') : date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
+export const getPlanEndLabel = (plan: PrintPlan) => {
+  const startAt = dateValue(plan.start)
+  const endAt = dateValue(plan.end)
+  return plan.end && (!Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt > startAt) ? plan.end : estimateEnd(plan) || plan.end
+}
+
+export const getPlanningWorkspaceClass = (hasSelection: boolean) => hasSelection ? 'planning-workspace has-selection' : 'planning-workspace'
+export const getPlanStatusClass = (status: string) => status.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-')
+
+const useDesktopLayout = () => {
+  const [desktop, setDesktop] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(min-width: 900px)').matches)
+  useEffect(() => {
+    const query = window.matchMedia?.('(min-width: 900px)')
+    if (!query) return
+    const update = () => setDesktop(query.matches)
+    update()
+    query.addEventListener?.('change', update)
+    return () => query.removeEventListener?.('change', update)
+  }, [])
+  return desktop
+}
+
 export function PlanningScreen({ token, onBack, onUpdated, onSessionExpired }: { token: string; onBack: () => void; onUpdated?: () => void; onSessionExpired?: () => void }) {
   const repo = createPlanningRepository(token)
+  const desktop = useDesktopLayout()
   const [plans, setPlans] = useState<PrintPlan[]>([])
   const [tab, setTab] = useState<Tab>('andamento')
   const [draft, setDraft] = useState<PrintPlan | null>(null)
@@ -98,37 +126,24 @@ export function PlanningScreen({ token, onBack, onUpdated, onSessionExpired }: {
     <div className="delete-dialog-actions"><button className="delete-cancel" onClick={() => setPlanToDelete(null)}>Cancelar</button><button className="delete-confirm" onClick={remove}>Apagar</button></div>
   </section></div>
 
-  if (draft) {
-    const predictedEnd = estimateEnd(draft)
-    return <><section className="form">
-      <button className="back" onClick={() => setDraft(null)}>← Voltar para planejamento</button>
-      <h1>{draft.row ? 'Editar impressão' : 'Nova impressão'}</h1>
-      <p className="estimate">A ordem será definida automaticamente pelo horário de início.</p>
-      <label>Peça / lote<input value={draft.piece} onChange={e => setDraft({ ...draft, piece: e.target.value })} /></label>
-      <label>Quantidade de objetos<input inputMode="numeric" pattern="[0-9]*" value={draft.quantity || ''} onChange={e => setDraft({ ...draft, quantity: Number(e.target.value.replace(/\D/g, '')) || 0 })} /></label>
-      <label>Detalhes / cor<input value={draft.details} onChange={e => setDraft({ ...draft, details: e.target.value })} /></label>
-      <label>Horas<input inputMode="numeric" pattern="[0-9]*" value={draft.hours || ''} onChange={e => setDraft({ ...draft, hours: Number(e.target.value.replace(/\D/g, '')) || 0 })} /></label>
-      <label>Minutos<input inputMode="numeric" pattern="[0-9]*" value={draft.minutes || ''} onChange={e => setDraft({ ...draft, minutes: Number(e.target.value.replace(/\D/g, '')) || 0 })} /></label>
-      <label>Pausa antes (min)<input inputMode="numeric" pattern="[0-9]*" value={draft.pause || ''} onChange={e => setDraft({ ...draft, pause: Number(e.target.value.replace(/\D/g, '')) || 0 })} /></label>
-      <label>Pausa durante (min)<input inputMode="numeric" pattern="[0-9]*" value={draft.pauseDuring || ''} onChange={e => setDraft({ ...draft, pauseDuring: Number(e.target.value.replace(/\D/g, '')) || 0 })} /></label>
-      {predictedEnd && <p className="estimate">Previsão de término: <strong>{predictedEnd}</strong></p>}
-      <label>Ocorrência / motivo<input value={draft.occurrence} placeholder="Ex.: troca de filamento" onChange={e => setDraft({ ...draft, occurrence: e.target.value })} /></label>
-      <label>Início<input value={draft.start} onChange={e => setDraft({ ...draft, start: e.target.value })} /></label>
-      <label>Status<select value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value })}>{['Planejado', 'Em impressão', 'Pausado', 'Concluído', 'Cancelado'].map(x => <option key={x}>{x}</option>)}</select></label>
-      <button onClick={save}>Salvar planejamento</button>
-      {draft.row && <button onClick={() => setPlanToDelete(draft)}>Apagar planejamento</button>}
-    </section>{deletionDialog}</>
-  }
+  const tabs = [['andamento', 'Em andamento'], ['proximas', 'Próximas'], ['pausadas', 'Pausadas'], ['concluidas', 'Concluídas']] as [Tab, string][]
+  const selectPlan = (plan: PrintPlan) => setDraft(plan)
 
-  return <><section>
-    <button className="back" onClick={onBack}>← Voltar para orçamentos</button>
-    <h1>Planejamento de impressão</h1>
-    {error && <p className="message">{error}</p>}
-    {active && <button className="print-now" onClick={() => setDraft(active)}><small>IMPRIMINDO AGORA</small><b>{active.quantity > 1 ? `${active.quantity}x ` : ''}{active.piece}</b><span>{active.details} · termina {active.end || estimateEnd(active) || '—'}</span></button>}
-    <button onClick={() => setDraft(empty())}>＋ Nova impressão</button>
-    <div className="plan-tabs">{([['andamento', 'Em andamento'], ['proximas', 'Próximas'], ['pausadas', 'Pausadas'], ['concluidas', 'Concluídas']] as [Tab, string][]).map(([id, label]) => <button className={tab === id ? 'selected' : ''} onClick={() => setTab(id)} key={id}>{label}</button>)}</div>
-    {visible.length ? visible.map(p => <article className="plan-item" key={p.row}><button className={`quote plan-card ${tab}`} onClick={() => setDraft(p)}><b>{p.quantity > 1 ? `${p.quantity}x ` : ''}{p.piece}</b><span>{p.details} · início {p.start || '—'} · fim {p.end || estimateEnd(p) || '—'}</span><span>{p.duration || `${p.hours}h ${p.minutes}min`} · {p.status}</span></button>{p.row && <button className="plan-delete" aria-label={`Apagar ${p.piece}`} onClick={() => setPlanToDelete(p)}><TrashIcon /></button>}</article>) : <p className="empty">Nenhuma impressão nesta etapa.</p>}
+  return <><section className="planning-screen">
+    <div className="planning-mobile-header"><button className="back" onClick={onBack}>← Voltar para orçamentos</button><h1>Planejamento de impressão</h1>{error && <p className="message">{error}</p>}{active && <button className="print-now" onClick={() => selectPlan(active)}><small>IMPRIMINDO AGORA</small><b>{active.quantity > 1 ? `${active.quantity}x ` : ''}{active.piece}</b><span>{active.details} · termina {active.end || estimateEnd(active) || '—'}</span></button>}<button onClick={() => setDraft(empty())}>＋ Nova impressão</button><div className="plan-tabs">{tabs.map(([id, label]) => <button className={tab === id ? 'selected' : ''} onClick={() => setTab(id)} key={id}>{label}</button>)}</div></div>
+    <div className="planning-desktop-header"><div><h1>Produção</h1><p>Planeje e acompanhe suas impressões.</p></div><button className="new-quote" onClick={() => setDraft(empty())}>＋ <span>Novo planejamento</span></button></div>{error && <p className="message planning-desktop-error">{error}</p>}
+    <div className={getPlanningWorkspaceClass(Boolean(draft))}><section className="planning-list-panel"><h2>Planejamentos</h2>{desktop ? <div className="planning-desktop-list"><PlanList plans={sortPlansForDesktop(plans)} selectedRow={draft?.row} onSelect={selectPlan} onDelete={setPlanToDelete} /></div> : <div className="planning-mobile-list"><PlanList plans={visible} selectedRow={draft?.row} onSelect={selectPlan} onDelete={setPlanToDelete} tab={tab} /></div>}</section>{draft && <section className="planning-details-panel"><PlanningEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setDraft(null)} onDelete={() => setPlanToDelete(draft)} /></section>}</div>
   </section>{deletionDialog}</>
+}
+
+function PlanList({ plans, selectedRow, onSelect, onDelete, tab }: { plans: PrintPlan[]; selectedRow?: number; onSelect: (plan: PrintPlan) => void; onDelete: (plan: PrintPlan) => void; tab?: Tab }) {
+  return plans.length ? <>{plans.map(plan => <article className={`plan-item ${selectedRow === plan.row ? 'selected' : ''}`} key={plan.row}><button className={`quote plan-card ${tab || ''}`} aria-current={selectedRow === plan.row || undefined} onClick={() => onSelect(plan)}><b>{plan.quantity > 1 ? `${plan.quantity}x ` : ''}{plan.piece}</b><span><em className={`plan-status ${getPlanStatusClass(plan.status)}`}>{plan.status}</em></span><small>▣ Início: {plan.start || '—'}{getPlanEndLabel(plan) ? ` · Previsão: ${getPlanEndLabel(plan)}` : ''}</small></button>{plan.row && <button className="plan-delete" aria-label={`Apagar ${plan.piece}`} onClick={() => onDelete(plan)}><TrashIcon /></button>}</article>)}</> : <p className="empty">Nenhuma impressão nesta etapa.</p>
+}
+
+function PlanningEditor({ draft, onChange, onSave, onCancel, onDelete }: { draft: PrintPlan; onChange: (plan: PrintPlan) => void; onSave: () => void; onCancel: () => void; onDelete: () => void }) {
+  const predictedEnd = estimateEnd(draft)
+  const numberChange = (field: 'quantity' | 'hours' | 'minutes' | 'pause' | 'pauseDuring') => (value: string) => onChange({ ...draft, [field]: Number(value.replace(/\D/g, '')) || 0 })
+  return <><h2>Detalhes do planejamento</h2><section className="form planning-editor-form"><p className="estimate">A ordem será definida automaticamente pelo horário de início.</p><label>Peça / lote<input value={draft.piece} onChange={e => onChange({ ...draft, piece: e.target.value })} /></label><label>Quantidade de objetos<input inputMode="numeric" pattern="[0-9]*" value={draft.quantity || ''} onChange={e => numberChange('quantity')(e.target.value)} /></label><label>Detalhes / cor<input value={draft.details} onChange={e => onChange({ ...draft, details: e.target.value })} /></label><div className="planning-duration-fields"><label>Horas<input inputMode="numeric" pattern="[0-9]*" value={draft.hours || ''} onChange={e => numberChange('hours')(e.target.value)} /></label><label>Minutos<input inputMode="numeric" pattern="[0-9]*" value={draft.minutes || ''} onChange={e => numberChange('minutes')(e.target.value)} /></label><label>Pausa antes (min)<input inputMode="numeric" pattern="[0-9]*" value={draft.pause || ''} onChange={e => numberChange('pause')(e.target.value)} /></label><label>Pausa durante (min)<input inputMode="numeric" pattern="[0-9]*" value={draft.pauseDuring || ''} onChange={e => numberChange('pauseDuring')(e.target.value)} /></label></div>{predictedEnd && <p className="estimate">Previsão de término: <strong>{predictedEnd}</strong></p>}<label>Ocorrência / motivo<input value={draft.occurrence} placeholder="Ex.: troca de filamento" onChange={e => onChange({ ...draft, occurrence: e.target.value })} /></label><div className="planning-footer-fields"><label>Início<input value={draft.start} onChange={e => onChange({ ...draft, start: e.target.value })} /></label><label>Status<select value={draft.status} onChange={e => onChange({ ...draft, status: e.target.value })}>{['Planejado', 'Em impressão', 'Pausado', 'Concluído', 'Cancelado'].map(status => <option key={status}>{status}</option>)}</select></label></div><div className="planning-editor-actions">{draft.row && <button type="button" className="delete-cancel" onClick={onDelete}>Apagar planejamento</button>}<button type="button" className="delete-cancel" onClick={onCancel}>Cancelar</button><button type="button" onClick={onSave}>Salvar planejamento</button></div></section></>
 }
 
 function TrashIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M9 7l1-3h4l1 3M6 7l1 13h10l1-13" /></svg> }

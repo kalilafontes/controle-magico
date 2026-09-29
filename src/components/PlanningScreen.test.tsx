@@ -9,7 +9,7 @@ vi.mock('../data/planningRepository', () => ({
   createPlanningRepository: () => ({ getPlans, savePlan: vi.fn(), deletePlan, synchronizeSchedule }),
 }))
 
-import { PlanningScreen, sortPlansForTab } from './PlanningScreen'
+import { getPlanEndLabel, getPlanStatusClass, getPlanningWorkspaceClass, PlanningScreen, sortPlansForDesktop, sortPlansForTab } from './PlanningScreen'
 
 describe('PlanningScreen', () => {
   const planned = { row: 6, order: '1', piece: 'Dumplin', quantity: 1, details: '', hours: 1, minutes: 0, pause: 0, start: '28/09/2026 10:00', end: '', duration: '', status: 'Planejado', pauseDuring: 0, occurrence: '' }
@@ -92,5 +92,35 @@ describe('PlanningScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Apagar' }))
 
     await waitFor(() => expect(deletePlan).toHaveBeenCalledWith(6))
+  })
+
+  it('expande a lista no desktop quando não há planejamento selecionado', () => {
+    expect(getPlanningWorkspaceClass(false)).toBe('planning-workspace')
+    expect(getPlanningWorkspaceClass(true)).toBe('planning-workspace has-selection')
+  })
+
+  it('ordena a lista ampla por impressão, planejado, pausado e concluído', () => {
+    const plans = [
+      { row: 5, piece: 'Concluído', start: '28/09/2026 10:00', status: 'Concluído' },
+      { row: 6, piece: 'Pausado', start: '28/09/2026 09:00', status: 'Pausado' },
+      { row: 7, piece: 'Planejado', start: '28/09/2026 08:00', status: 'Planejado' },
+      { row: 8, piece: 'Imprimindo', start: '28/09/2026 07:00', status: 'Imprimindo' },
+    ] as never[]
+
+    expect(sortPlansForDesktop(plans).map(plan => plan.piece)).toEqual(['Imprimindo', 'Planejado', 'Pausado', 'Concluído'])
+  })
+
+  it('atribui uma classe de tag para cada status de produção', () => {
+    expect(getPlanStatusClass('Em impressão')).toBe('em-impressao')
+    expect(getPlanStatusClass('Planejado')).toBe('planejado')
+    expect(getPlanStatusClass('Pausado')).toBe('pausado')
+    expect(getPlanStatusClass('Concluído')).toBe('concluido')
+    expect(getPlanStatusClass('Cancelado')).toBe('cancelado')
+  })
+
+  it('mostra a previsão calculada quando o fim salvo é anterior ao início', () => {
+    const plan = { start: '28/09/2026 19:20', end: '28/09/2026 17:30', hours: 2, minutes: 55, pause: 45, pauseDuring: 0 } as never
+
+    expect(getPlanEndLabel(plan)).toBe('28/09/2026 23:00')
   })
 })

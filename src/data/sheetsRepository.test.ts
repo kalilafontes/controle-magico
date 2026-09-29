@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSheetsRepository } from './sheetsRepository'
 import type { Quote } from '../domain/quote'
 
@@ -11,6 +11,7 @@ const quote = (items: Quote['items']): Quote => ({
 })
 
 describe('createSheetsRepository', () => {
+  afterEach(() => vi.restoreAllMocks())
   it('carrega os produtos da aba de itens pelo ID do orçamento', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(response({ values: [
@@ -71,6 +72,69 @@ describe('createSheetsRepository', () => {
     ]))).rejects.toThrow('Preencha os itens')
 
     expect(fetchMock).not.toHaveBeenCalled()
+    fetchMock.mockRestore()
+  })
+
+  it('ignora uma linha de produto completamente vazia ao salvar', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(response({ values: [] }))
+      .mockResolvedValueOnce(response({ values: [] }))
+      .mockResolvedValue(response({}))
+
+    await createSheetsRepository('sheet-id', 'token').saveQuote(quote([
+      { id: 'item-1', description: 'Base', quantity: 1, unitPrice: 20 },
+      { id: 'item-2', description: '', quantity: 1, unitPrice: 0 },
+    ]))
+
+    const calls = fetchMock.mock.calls.map(([url, init]) => ({ url: String(url), body: JSON.parse(String(init?.body || '{}')) }))
+    expect(calls).toContainEqual(expect.objectContaining({
+      url: expect.stringContaining('Itens%20do%20Or%C3%A7amento!A:E:append'),
+      body: { values: [['orc-1', 'Base', 1, 20, 20]] },
+    }))
+    fetchMock.mockRestore()
+  })
+
+  it('preserva a mensagem da API quando a planilha recusa uma operação', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'Unable to parse range: Itens do Orçamento!A:E' } }),
+    } as Response)
+
+    await expect(createSheetsRepository('sheet-id', 'token').getQuotes()).rejects.toMatchObject({
+      status: 400,
+      message: 'Unable to parse range: Itens do Orçamento!A:E',
+    })
+
+    fetchMock.mockRestore()
+  })
+
+  it('remove o orçamento e somente seus produtos vinculados', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(response({ values: [
+        ['orc-1', '2026-09-28'],
+        ['orc-2', '2026-09-29'],
+      ] }))
+      .mockResolvedValueOnce(response({ values: [
+        ['orc-1', 'Base'],
+        ['orc-2', 'Chaveiro'],
+        ['orc-1', 'Tampa'],
+      ] }))
+      .mockResolvedValueOnce(response({ sheets: [
+        { properties: { sheetId: 10, title: 'Orçamentos' } },
+        { properties: { sheetId: 20, title: 'Itens do Orçamento' } },
+      ] }))
+      .mockResolvedValueOnce(response({}))
+
+    await createSheetsRepository('sheet-id', 'token').deleteQuote('orc-1')
+
+    const lastCall = fetchMock.mock.calls.at(-1)!
+    expect(String(lastCall[0])).toContain(':batchUpdate')
+    expect(JSON.parse(String(lastCall[1]?.body))).toEqual({
+      requests: [
+        { deleteDimension: { range: { sheetId: 10, dimension: 'ROWS', startIndex: 1, endIndex: 2 } } },
+        { deleteDimension: { range: { sheetId: 20, dimension: 'ROWS', startIndex: 3, endIndex: 4 } } },
+        { deleteDimension: { range: { sheetId: 20, dimension: 'ROWS', startIndex: 1, endIndex: 2 } } },
+      ],
+    })
     fetchMock.mockRestore()
   })
 })

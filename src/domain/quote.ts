@@ -34,6 +34,23 @@ export function calculatePaymentStatus(total: number, receivedAmount: number) {
   return 'Parcialmente pago'
 }
 
+export const getQuoteStatusClass = (status: QuoteStatus) => ({
+  Rascunho: 'status-draft',
+  Enviado: 'status-sent',
+  'Aguardando aprovação': 'status-approval',
+  Aprovado: 'status-approved',
+  'Aguardando produção': 'status-production',
+  'Aguardando entrega': 'status-delivery',
+  Entregue: 'status-delivered',
+  Recusado: 'status-rejected',
+}[status])
+
+export const getPaymentStatusClass = (status: string) => ({
+  'Não pago': 'payment-unpaid',
+  'Parcialmente pago': 'payment-partial',
+  Pago: 'payment-paid',
+}[status] || 'payment-unpaid')
+
 export function calculateQuoteTotals(items: QuoteItem[], discount: number) {
   const subtotal = items.reduce((sum, item) => sum + Math.max(0, item.quantity) * Math.max(0, item.unitPrice), 0)
   return { subtotal, total: Math.max(0, subtotal - Math.max(0, discount)) }

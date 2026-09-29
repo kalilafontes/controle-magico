@@ -3,6 +3,18 @@ import { makeSequentialSchedule } from './planningSchedule'
 
 export interface PrintPlan { row?: number; order: string; piece: string; quantity: number; details: string; hours: number; minutes: number; pause: number; start: string; end: string; duration: string; status: string; pauseDuring: number; occurrence: string }
 
+type FormulaGrid = { startRow?: number; rowData?: { values?: { userEnteredValue?: { formulaValue?: string } }[] }[] }
+type FormulaSheetResponse = { sheets?: { data?: FormulaGrid[] }[] }
+
+export const findFormulaSourceRow = (data: unknown) => {
+  const grids = (data as FormulaSheetResponse).sheets?.flatMap(sheet => sheet.data || []) || []
+  for (const grid of grids) {
+    const rowIndex = grid.rowData?.findIndex(row => (row.values?.filter(value => value.userEnteredValue?.formulaValue).length || 0) >= 2) ?? -1
+    if (rowIndex >= 0) return (grid.startRow || 0) + rowIndex + 1
+  }
+  return null
+}
+
 export const mapPlanRow = (row: string[], sheetRow: number): PrintPlan => ({
   row: sheetRow,
   order: row[0] || '',
@@ -38,6 +50,7 @@ export function createPlanningRepository(token: string) {
     if (!sheet) throw new Error('A aba Planejamento não foi encontrada.')
     return sheet.properties.sheetId as number
   }
+  const getFormulaSourceRow = async () => findFormulaSourceRow(await request('/?includeGridData=true&ranges=Planejamento!I5:J&fields=sheets(data(startRow,rowData(values(userEnteredValue))))'))
 
   const writePlanInputs = async (plan: PrintPlan) => {
     await request('/values:batchUpdate', {
@@ -61,8 +74,8 @@ export function createPlanningRepository(token: string) {
     if (!inserted) throw new Error('Não foi possível preparar a nova impressão.')
 
     const insertAt = ordered.find((item, index) => index > ordered.indexOf(inserted) && item.row)?.row || (current.at(-1)?.row || 4) + 1
-    const sheetId = await getPlanningSheetId()
-    const formulaSourceRow = current.length ? (insertAt <= (current.at(-1)?.row || 0) ? insertAt + 1 : insertAt - 1) : null
+    const [sheetId, originalFormulaSourceRow] = await Promise.all([getPlanningSheetId(), getFormulaSourceRow()])
+    const formulaSourceRow = originalFormulaSourceRow && originalFormulaSourceRow >= insertAt ? originalFormulaSourceRow + 1 : originalFormulaSourceRow
     const requests: object[] = [{ insertDimension: { range: { sheetId, dimension: 'ROWS', startIndex: insertAt - 1, endIndex: insertAt } } }]
     if (formulaSourceRow) {
       requests.push({ copyPaste: {

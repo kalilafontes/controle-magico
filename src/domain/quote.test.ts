@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculatePaymentStatus, calculateQuoteTotals, createDraftQuote, validateQuote } from './quote'
+import { calculatePaymentStatus, calculateQuoteTotals, createDraftQuote, getPaymentStatusClass, getQuoteStatusClass, validateQuote } from './quote'
 
 describe('orçamentos', () => {
   it('calcula subtotal e total com desconto', () => {
@@ -22,5 +22,14 @@ describe('orçamentos', () => {
   it('informa o progresso do pagamento a partir do valor recebido', () => {
     expect(calculatePaymentStatus(680, 340)).toBe('Parcialmente pago')
     expect(calculatePaymentStatus(680, 680)).toBe('Pago')
+  })
+
+  it('atribui cores distintas para cada estágio e pagamento', () => {
+    expect(getQuoteStatusClass('Aguardando produção')).toBe('status-production')
+    expect(getQuoteStatusClass('Entregue')).toBe('status-delivered')
+    expect(getQuoteStatusClass('Recusado')).toBe('status-rejected')
+    expect(getPaymentStatusClass('Não pago')).toBe('payment-unpaid')
+    expect(getPaymentStatusClass('Parcialmente pago')).toBe('payment-partial')
+    expect(getPaymentStatusClass('Pago')).toBe('payment-paid')
   })
 })
