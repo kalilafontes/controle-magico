@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculatePaymentStatus, calculateQuoteTotals, createDraftQuote, getPaymentStatusClass, getQuoteStatusClass, validateQuote } from './quote'
+import { buildQuoteShareText, calculatePaymentStatus, calculateQuoteTotals, createDraftQuote, getPaymentStatusClass, getQuoteStatusClass, validateQuote } from './quote'
 
 describe('orçamentos', () => {
   it('calcula subtotal e total com desconto', () => {
@@ -31,5 +31,23 @@ describe('orçamentos', () => {
     expect(getPaymentStatusClass('Não pago')).toBe('payment-unpaid')
     expect(getPaymentStatusClass('Parcialmente pago')).toBe('payment-partial')
     expect(getPaymentStatusClass('Pago')).toBe('payment-paid')
+  })
+
+  it('monta um texto de compartilhamento sem destinatário específico', () => {
+    const text = buildQuoteShareText({
+      id: 'orc-1', createdAt: '', updatedAt: '', client: 'Ana', phone: '', status: 'Rascunho', validUntil: '2026-10-15',
+      items: [{ id: 'item-1', description: 'Vaso geométrico', quantity: 2, unitPrice: 35 }], discount: 5, receivedAmount: 0, deliveryDate: '', notes: '',
+    })
+
+    expect(text).toBe('Orçamento\n\nOlá! 😊\nSegue o orçamento solicitado:\n\n• 2x Vaso geométrico — R$ 70,00\n\nDesconto: R$ 5,00\nTotal: R$ 65,00\nValidade: 15/10/2026')
+  })
+
+  it('omite o desconto quando ele é zero', () => {
+    const text = buildQuoteShareText({
+      id: 'orc-1', createdAt: '', updatedAt: '', client: 'Ana', phone: '', status: 'Rascunho', validUntil: '',
+      items: [{ id: 'item-1', description: 'Chaveiro', quantity: 30, unitPrice: 2.5 }], discount: 0, receivedAmount: 0, deliveryDate: '', notes: '',
+    })
+
+    expect(text).toBe('Orçamento\n\nOlá! 😊\nSegue o orçamento solicitado:\n\n• 30x Chaveiro — R$ 75,00\n\nTotal: R$ 75,00')
   })
 })

@@ -5,10 +5,11 @@ import { localConfig } from './localConfig'
 import { createSheetsRepository } from './data/sheetsRepository'
 import { createPlanningRepository, type PrintPlan } from './data/planningRepository'
 import { PlanningScreen } from './components/PlanningScreen'
-import { calculatePaymentStatus, calculateQuoteTotals, createDraftQuote, getPaymentStatusClass, getQuoteStatusClass, type Quote, type QuoteItem } from './domain/quote'
+import { buildQuoteShareText, calculatePaymentStatus, calculateQuoteTotals, createDraftQuote, getPaymentStatusClass, getQuoteStatusClass, type Quote, type QuoteItem } from './domain/quote'
 import { formatMoneyInput, parseMoneyInput } from './domain/money'
 import { getSavedScreen, saveScreen, type Screen } from './navigation'
 import { getPrintProgress } from './printProgress'
+import { shareText } from './share'
 import './styles.css'
 import './desktopNav.css'
 import loginPrinter from './assets/login-printer.png'
@@ -155,11 +156,25 @@ export function QuoteSummary({ items, discount }: { items: QuoteItem[]; discount
 
 export function QuoteEditor({ draft, onChange, onSave, onCancel }: { draft: Quote; onChange: (quote: Quote) => void; onSave: () => void; onCancel: () => void }) {
   const total = calculateQuoteTotals(draft.items, draft.discount).total
+  const [shareMessage, setShareMessage] = useState('')
+  const shareQuote = async () => {
+    if (!draft.items.length || draft.items.some(item => !item.description.trim() || item.quantity <= 0 || item.unitPrice < 0)) {
+      setShareMessage('Adicione pelo menos um produto válido antes de compartilhar.')
+      return
+    }
+    try {
+      const result = await shareText(buildQuoteShareText(draft))
+      setShareMessage(result === 'copied' ? 'Texto do orçamento copiado. Cole onde quiser compartilhar.' : '')
+    } catch {
+      setShareMessage('Não foi possível compartilhar o orçamento. Tente novamente.')
+    }
+  }
   return <><h2 className="quote-details-title">Detalhes do orçamento</h2><section className="form quote-editor-form">
     <div className="quote-main-fields"><label>Cliente<input value={draft.client} onChange={e => onChange({ ...draft, client: e.target.value })} /></label><label>Status<select value={draft.status} onChange={e => onChange({ ...draft, status: e.target.value as Quote['status'] })}>{['Rascunho', 'Enviado', 'Aguardando aprovação', 'Aprovado', 'Aguardando produção', 'Aguardando entrega', 'Entregue', 'Recusado'].map(status => <option key={status}>{status}</option>)}</select></label><label>Data de entrega<input type="date" value={draft.deliveryDate} onChange={e => onChange({ ...draft, deliveryDate: e.target.value })} /></label></div>
     <QuoteItemsEditor items={draft.items} onChange={items => onChange({ ...draft, items })} />
     <div className="quote-payment-fields"><MoneyInput label="Desconto" value={draft.discount} onChange={discount => onChange({ ...draft, discount })} /><QuoteSummary items={draft.items} discount={draft.discount} /><MoneyInput label="Valor recebido" value={draft.receivedAmount} onChange={receivedAmount => onChange({ ...draft, receivedAmount })} /><strong className="payment-status">{formatMoneyInput(draft.receivedAmount)} de {formatMoneyInput(total)} · {calculatePaymentStatus(total, draft.receivedAmount)}</strong></div>
-    <div className="quote-editor-actions"><button type="button" className="delete-cancel" onClick={onCancel}>Cancelar</button><button type="button" onClick={onSave}>Salvar orçamento</button></div>
+    {shareMessage && <p className="message" role="status">{shareMessage}</p>}
+    <div className="quote-editor-actions"><button type="button" className="delete-cancel" onClick={onCancel}>Cancelar</button><button type="button" className="share-quote" onClick={shareQuote}>Compartilhar orçamento</button><button type="button" onClick={onSave}>Salvar orçamento</button></div>
   </section></>
 }
 

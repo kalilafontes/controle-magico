@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
-import { getQuoteWorkspaceClass, getSaveMessage, LoginScreen, MoneyInput, Navigation, QuoteItemsEditor, QuoteList, QuoteSummary } from './App'
-import type { QuoteItem } from './domain/quote'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { getQuoteWorkspaceClass, getSaveMessage, LoginScreen, MoneyInput, Navigation, QuoteEditor, QuoteItemsEditor, QuoteList, QuoteSummary } from './App'
+import type { Quote, QuoteItem } from './domain/quote'
+
+afterEach(() => cleanup())
 
 function EditorHarness() {
   const [items, setItems] = useState<QuoteItem[]>([{ id: 'base', description: 'Base', quantity: 2, unitPrice: 25 }])
@@ -13,6 +15,14 @@ function EditorHarness() {
 function MoneyHarness() {
   const [value, setValue] = useState(0)
   return <><MoneyInput label="Desconto" value={value} onChange={setValue} /><output>{value}</output></>
+}
+
+function ShareEditorHarness({ items = [{ id: 'item-1', description: 'Vaso', quantity: 1, unitPrice: 35 }] }: { items?: QuoteItem[] }) {
+  const [quote, setQuote] = useState<Quote>({
+    id: 'orc-1', createdAt: '', updatedAt: '', client: 'Ana', phone: '', status: 'Rascunho', validUntil: '2026-10-15',
+    items, discount: 0, receivedAmount: 0, deliveryDate: '', notes: '',
+  })
+  return <QuoteEditor draft={quote} onChange={setQuote} onSave={() => undefined} onCancel={() => undefined} />
 }
 
 describe('QuoteItemsEditor', () => {
@@ -62,6 +72,32 @@ describe('QuoteSummary', () => {
     expect(screen.getByText('Subtotal: R$ 65,00')).toBeInTheDocument()
     expect(screen.getByText('Desconto: R$ 10,00')).toBeInTheDocument()
     expect(screen.getByText('Total: R$ 55,00')).toBeInTheDocument()
+  })
+})
+
+describe('QuoteEditor', () => {
+  it('abre o compartilhamento padrão sem mudar o status do orçamento', async () => {
+    const user = userEvent.setup()
+    const share = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'share', { configurable: true, value: share })
+    render(<ShareEditorHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'Compartilhar orçamento' }))
+
+    expect(share).toHaveBeenCalledWith(expect.objectContaining({ title: 'Orçamento', text: expect.stringContaining('Total: R$ 35,00') }))
+    expect(screen.getByLabelText('Status')).toHaveValue('Rascunho')
+  })
+
+  it('impede o compartilhamento de um orçamento sem produtos válidos', async () => {
+    const user = userEvent.setup()
+    const share = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'share', { configurable: true, value: share })
+    render(<ShareEditorHarness items={[{ id: 'item-1', description: '', quantity: 1, unitPrice: 0 }]} />)
+
+    await user.click(screen.getByRole('button', { name: 'Compartilhar orçamento' }))
+
+    expect(share).not.toHaveBeenCalled()
+    expect(screen.getByRole('status')).toHaveTextContent('Adicione pelo menos um produto válido antes de compartilhar.')
   })
 })
 

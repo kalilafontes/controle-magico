@@ -56,6 +56,16 @@ export function calculateQuoteTotals(items: QuoteItem[], discount: number) {
   return { subtotal, total: Math.max(0, subtotal - Math.max(0, discount)) }
 }
 
+const formatQuoteMoney = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`
+const formatQuoteDate = (value: string) => value ? value.split('-').reverse().join('/') : ''
+
+export function buildQuoteShareText(quote: Quote) {
+  const { total } = calculateQuoteTotals(quote.items, quote.discount)
+  const items = quote.items.map(item => `• ${item.quantity}x ${item.description} — ${formatQuoteMoney(item.quantity * item.unitPrice)}`).join('\n')
+  const priceDetails = quote.discount > 0 ? `\n\nDesconto: ${formatQuoteMoney(quote.discount)}\nTotal: ${formatQuoteMoney(total)}` : `\n\nTotal: ${formatQuoteMoney(total)}`
+  return `Orçamento\n\nOlá! 😊\nSegue o orçamento solicitado:\n\n${items}${priceDetails}${quote.validUntil ? `\nValidade: ${formatQuoteDate(quote.validUntil)}` : ''}`
+}
+
 export function validateQuote(quote: Quote): string[] {
   const errors: string[] = []
   if (!quote.client.trim()) errors.push('Cliente é obrigatório.')
