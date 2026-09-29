@@ -123,4 +123,10 @@ describe('PlanningScreen', () => {
 
     expect(getPlanEndLabel(plan)).toBe('28/09/2026 23:00')
   })
+
+  it('calcula a previsão de um planejamento mesmo quando a planilha tem outro fim', () => {
+    const plan = { start: '29/09/2026 07:30', end: '29/09/2026 09:00', hours: 2, minutes: 55, pause: 45, pauseDuring: 0, status: 'Planejado' } as never
+
+    expect(getPlanEndLabel(plan)).toBe('29/09/2026 11:10')
+  })
 })

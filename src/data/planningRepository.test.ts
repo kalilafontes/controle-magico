@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createPlanningRepository, findFormulaSourceRow, mapPlanRow, type PrintPlan } from './planningRepository'
+import { createPlanningRepository, findFormulaSourceRow, getEndFormula, mapPlanRow, type PrintPlan } from './planningRepository'
 
 describe('mapPlanRow', () => {
   it('lê quantidade na coluna C após a alteração da planilha', () => {
@@ -87,5 +87,20 @@ describe('createPlanningRepository', () => {
       { values: [{ userEnteredValue: { stringValue: '17:30' } }] },
       { values: [{ userEnteredValue: { formulaValue: '=H6' } }, { userEnteredValue: { formulaValue: '=E6' } }] },
     ] }] }] })).toBe(6)
+  })
+
+  it('gera a fórmula de fim usando início, duração e pausas da mesma linha', () => {
+    expect(getEndFormula(8)).toBe('=H8+E8/24+F8/1440+G8/1440+L8/1440')
+  })
+
+  it('corrige a fórmula de fim de um planejamento quando o valor salvo diverge da duração', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response({}))
+    const plan: PrintPlan = { row: 6, order: '1', piece: 'Tecla', quantity: 1, details: '', hours: 2, minutes: 55, pause: 45, start: '29/09/2026 07:30', end: '29/09/2026 09:00', duration: '', status: 'Planejado', pauseDuring: 0, occurrence: '' }
+
+    await expect(createPlanningRepository('token').synchronizeSchedule([plan])).resolves.toBe(true)
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
+    expect(body.data).toContainEqual({ range: 'Planejamento!I6', values: [['=H6+E6/24+F6/1440+G6/1440+L6/1440']] })
+    fetchMock.mockRestore()
   })
 })

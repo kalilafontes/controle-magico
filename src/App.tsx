@@ -11,6 +11,8 @@ import { getSavedScreen, saveScreen, type Screen } from './navigation'
 import { getPrintProgress } from './printProgress'
 import './styles.css'
 import './desktopNav.css'
+import loginPrinter from './assets/login-printer.png'
+import loginPrinterMobile from './assets/login-printer-mobile.png'
 
 const formatDate = (value: string) => value ? value.split('-').reverse().join('/') : ''
 const isPrinting = (status: string) => ['em impressão', 'imprimindo', 'em andamento'].includes(status.trim().toLowerCase())
@@ -89,7 +91,7 @@ export default function App() {
     }
   }
 
-  if (!token) return <main className="app"><p className="brand">CONTROLE</p><h1>Controle simples, onde você estiver.</h1><button onClick={login}>Entrar com Google</button>{message && <p className="message">{message}</p>}</main>
+  if (!token) return <LoginScreen onLogin={login} message={message} />
 
   const latestQuotes = quotes.slice(0, 3)
   const activePrintsCount = plans.filter(plan => isPrinting(plan.status)).length
@@ -120,6 +122,10 @@ export function QuoteList({ quotes, onEdit, onDelete, selectedId, showTotal = fa
 export function Navigation({ screen, onNavigate, collapsed, onCollapsedChange }: { screen: Screen; onNavigate: (screen: Screen) => void; collapsed: boolean; onCollapsedChange: (collapsed: boolean) => void }) {
   const items: [Screen, string, ComponentType][] = [['home', 'Início', HomeIcon], ['quotes', 'Orçamentos', QuoteIcon], ['planning', 'Produção', PrintIcon]]
   return <nav className={`bottom-nav ${collapsed ? 'collapsed' : ''}`}><button type="button" className="sidebar-toggle" aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'} title={collapsed ? 'Expandir menu' : 'Recolher menu'} onClick={() => onCollapsedChange(!collapsed)}><i><MenuIcon /></i><span>{collapsed ? 'Expandir' : 'Recolher'}</span></button>{items.map(([id, label, Icon]) => <button key={id} type="button" className={screen === id ? 'active' : ''} title={label} onClick={() => onNavigate(id)}><i><Icon /></i><span>{label}</span></button>)}</nav>
+}
+
+export function LoginScreen({ onLogin, message }: { onLogin: () => void; message: string }) {
+  return <main className="app login-screen"><section className="login-card"><picture className="login-illustration"><source media="(max-width: 899px)" srcSet={loginPrinterMobile} /><img src={loginPrinter} alt="Impressora e documentos" /></picture><div className="login-content"><p className="brand">CONTROLE</p><span className="login-brand-line" /><h1>Controle simples,<br />onde você estiver.</h1><p className="login-subtitle">Acesse seus orçamentos e planejamentos de impressão com praticidade.</p><button className="login-google" onClick={onLogin}><GoogleIcon />Entrar com Google</button><p className="login-hint"><span className="login-hint-desktop">Use sua conta Google para continuar</span><span className="login-hint-mobile">🔒 Seus dados ficam seguros com o Google.</span></p>{message && <p className="message">{message}</p>}</div></section></main>
 }
 
 function QuoteCard({ quote, onClick, selected = false, showTotal = false }: { quote: Quote; onClick: () => void; selected?: boolean; showTotal?: boolean }) {
@@ -181,3 +187,4 @@ function HomeIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d
 function QuoteIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 8h6M9 12h6M9 16h4" /></svg> }
 function PrintIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7zM18 11h.01" /></svg> }
 function MenuIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" /></svg> }
+function GoogleIcon() { return <svg className="google-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.8 12.2c0-.7-.1-1.4-.2-2H12v3.7h5.5a4.7 4.7 0 0 1-2 3.1v2.5h3.2c1.9-1.8 3.1-4.4 3.1-7.3Z" /><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.7-2.5l-3.2-2.5c-.9.6-2 .9-3.5.9-2.7 0-5-1.8-5.8-4.3H2.9v2.6A10 10 0 0 0 12 22Z" /><path fill="#FBBC05" d="M6.2 13.6a6 6 0 0 1 0-3.7V7.3H2.9a10 10 0 0 0 0 9l3.3-2.7Z" /><path fill="#EA4335" d="M12 6.1c1.6 0 3 .6 4.1 1.6l3-3A10 10 0 0 0 2.9 7.3l3.3 2.6C7 7.6 9.3 6.1 12 6.1Z" /></svg> }

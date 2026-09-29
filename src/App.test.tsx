@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { getQuoteWorkspaceClass, getSaveMessage, MoneyInput, Navigation, QuoteItemsEditor, QuoteList, QuoteSummary } from './App'
+import { getQuoteWorkspaceClass, getSaveMessage, LoginScreen, MoneyInput, Navigation, QuoteItemsEditor, QuoteList, QuoteSummary } from './App'
 import type { QuoteItem } from './domain/quote'
 
 function EditorHarness() {
@@ -107,5 +107,22 @@ describe('getQuoteWorkspaceClass', () => {
   it('expande a lista quando nenhum orçamento está selecionado', () => {
     expect(getQuoteWorkspaceClass(false)).toBe('quotes-workspace')
     expect(getQuoteWorkspaceClass(true)).toBe('quotes-workspace has-selection')
+  })
+})
+
+describe('LoginScreen', () => {
+  it('apresenta o acesso Google e a ilustração da impressora', () => {
+    render(<LoginScreen onLogin={() => undefined} message="" />)
+
+    expect(screen.getByRole('heading', { name: /Controle simples,.*onde você estiver\./ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Entrar com Google' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Impressora e documentos' })).toBeInTheDocument()
+  })
+
+  it('usa uma ilustração própria na composição de celular', () => {
+    const { container } = render(<LoginScreen onLogin={() => undefined} message="" />)
+
+    expect(container.querySelector('picture.login-illustration source[media="(max-width: 899px)"]')).toBeInTheDocument()
+    expect(container.querySelector('.login-hint-mobile')).toHaveTextContent('Seus dados ficam seguros com o Google.')
   })
 })

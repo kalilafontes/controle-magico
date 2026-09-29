@@ -2,6 +2,7 @@ import { assignPlanningOrder } from './planningOrder'
 import { makeSequentialSchedule } from './planningSchedule'
 
 export interface PrintPlan { row?: number; order: string; piece: string; quantity: number; details: string; hours: number; minutes: number; pause: number; start: string; end: string; duration: string; status: string; pauseDuring: number; occurrence: string }
+export const getEndFormula = (row: number) => `=H${row}+E${row}/24+F${row}/1440+G${row}/1440+L${row}/1440`
 
 type FormulaGrid = { startRow?: number; rowData?: { values?: { userEnteredValue?: { formulaValue?: string } }[] }[] }
 type FormulaSheetResponse = { sheets?: { data?: FormulaGrid[] }[] }
@@ -53,12 +54,14 @@ export function createPlanningRepository(token: string) {
   const getFormulaSourceRow = async () => findFormulaSourceRow(await request('/?includeGridData=true&ranges=Planejamento!I5:J&fields=sheets(data(startRow,rowData(values(userEnteredValue))))'))
 
   const writePlanInputs = async (plan: PrintPlan) => {
+    const endFormula = plan.status.trim().toLowerCase() === 'planejado' ? [{ range: `Planejamento!I${plan.row}`, values: [[getEndFormula(plan.row!)]] }] : []
     await request('/values:batchUpdate', {
       method: 'POST',
       body: JSON.stringify({
         valueInputOption: 'USER_ENTERED',
         data: [
           { range: `Planejamento!A${plan.row}:H${plan.row}`, values: [[plan.order, plan.piece, plan.quantity, plan.details, plan.hours, plan.minutes, plan.pause, plan.start]] },
+          ...endFormula,
           { range: `Planejamento!K${plan.row}:M${plan.row}`, values: [[plan.status, plan.pauseDuring, plan.occurrence]] },
         ],
       }),
@@ -113,10 +116,13 @@ export function createPlanningRepository(token: string) {
     const ordered = assignPlanningOrder(makeSequentialSchedule(plans))
     const originalByRow = new Map(plans.map(plan => [plan.row, plan]))
     const data = ordered.filter(plan => plan.row && plan.status === 'Planejado').flatMap(plan => {
-      const original = originalByRow.get(plan.row)
+      const row = plan.row
+      if (!row) return []
+      const original = originalByRow.get(row)
       const updates = []
-      if (original?.order !== plan.order) updates.push({ range: `Planejamento!A${plan.row}`, values: [[plan.order]] })
-      if (original?.start !== plan.start) updates.push({ range: `Planejamento!H${plan.row}`, values: [[plan.start]] })
+      if (original?.order !== plan.order) updates.push({ range: `Planejamento!A${row}`, values: [[plan.order]] })
+      if (original?.start !== plan.start) updates.push({ range: `Planejamento!H${row}`, values: [[plan.start]] })
+      if (original?.end !== plan.end) updates.push({ range: `Planejamento!I${row}`, values: [[getEndFormula(row)]] })
       return updates
     })
     if (!data.length) return false

@@ -47,6 +47,7 @@ const estimateEnd = (plan: PrintPlan) => {
 }
 
 export const getPlanEndLabel = (plan: PrintPlan) => {
+  if (plan.status?.trim().toLowerCase() === 'planejado') return estimateEnd(plan) || plan.end
   const startAt = dateValue(plan.start)
   const endAt = dateValue(plan.end)
   return plan.end && (!Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt > startAt) ? plan.end : estimateEnd(plan) || plan.end
