@@ -42,7 +42,7 @@ const estimateEnd = (plan: PrintPlan) => {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), now.getDate(), +hour, +minute)
   })()
-  date.setMinutes(date.getMinutes() + plan.hours * 60 + plan.minutes + plan.pause + plan.pauseDuring)
+  date.setMinutes(date.getMinutes() + plan.hours * 60 + plan.minutes + plan.pauseDuring)
   return fullDate ? date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).replace(',', '') : date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 

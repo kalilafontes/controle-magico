@@ -89,8 +89,8 @@ describe('createPlanningRepository', () => {
     ] }] }] })).toBe(6)
   })
 
-  it('gera a fórmula de fim usando início, duração e pausas da mesma linha', () => {
-    expect(getEndFormula(8)).toBe('=H8+E8/24+F8/1440+G8/1440+L8/1440')
+  it('gera a fórmula de fim sem incluir a pausa antes', () => {
+    expect(getEndFormula(8)).toBe('=H8+E8/24+F8/1440+L8/1440')
   })
 
   it('corrige a fórmula de fim de um planejamento quando o valor salvo diverge da duração', async () => {
@@ -100,7 +100,7 @@ describe('createPlanningRepository', () => {
     await expect(createPlanningRepository('token').synchronizeSchedule([plan])).resolves.toBe(true)
 
     const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
-    expect(body.data).toContainEqual({ range: 'Planejamento!I6', values: [['=H6+E6/24+F6/1440+G6/1440+L6/1440']] })
+    expect(body.data).toContainEqual({ range: 'Planejamento!I6', values: [['=H6+E6/24+F6/1440+L6/1440']] })
     fetchMock.mockRestore()
   })
 })

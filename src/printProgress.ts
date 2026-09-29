@@ -15,7 +15,7 @@ const remainingLabel = (minutes: number) => `~ ${Math.floor(minutes / 60)}h ${Ma
 export const getPrintProgress = (start: string, end: string, now = new Date(), hours = 0, minutes = 0, pause = 0, pauseDuring = 0) => {
   const startAt = parseDateTime(start)
   const savedEnd = parseDateTime(end)
-  const calculatedEnd = startAt ? new Date(startAt.getTime() + (hours * 60 + minutes + pause + pauseDuring) * 60000) : null
+  const calculatedEnd = startAt ? new Date(startAt.getTime() + (hours * 60 + minutes + pauseDuring) * 60000) : null
   const endAt = savedEnd && startAt && savedEnd > startAt ? savedEnd : calculatedEnd || savedEnd
   if (!startAt || !endAt || endAt <= startAt) return { percent: 0, remaining: 'Aguardando início' }
   const total = endAt.getTime() - startAt.getTime()

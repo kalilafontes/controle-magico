@@ -2,7 +2,7 @@ import { assignPlanningOrder } from './planningOrder'
 import { makeSequentialSchedule } from './planningSchedule'
 
 export interface PrintPlan { row?: number; order: string; piece: string; quantity: number; details: string; hours: number; minutes: number; pause: number; start: string; end: string; duration: string; status: string; pauseDuring: number; occurrence: string }
-export const getEndFormula = (row: number) => `=H${row}+E${row}/24+F${row}/1440+G${row}/1440+L${row}/1440`
+export const getEndFormula = (row: number) => `=H${row}+E${row}/24+F${row}/1440+L${row}/1440`
 
 type FormulaGrid = { startRow?: number; rowData?: { values?: { userEnteredValue?: { formulaValue?: string } }[] }[] }
 type FormulaSheetResponse = { sheets?: { data?: FormulaGrid[] }[] }

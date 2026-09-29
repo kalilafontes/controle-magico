@@ -12,8 +12,7 @@ import { getPrintProgress } from './printProgress'
 import { shareText } from './share'
 import './styles.css'
 import './desktopNav.css'
-import loginPrinter from './assets/login-printer.png'
-import loginPrinterMobile from './assets/login-printer-mobile.png'
+import loginPrinter from './assets/pinter-3d.png'
 
 const formatDate = (value: string) => value ? value.split('-').reverse().join('/') : ''
 const isPrinting = (status: string) => ['em impressão', 'imprimindo', 'em andamento'].includes(status.trim().toLowerCase())
@@ -126,7 +125,7 @@ export function Navigation({ screen, onNavigate, collapsed, onCollapsedChange }:
 }
 
 export function LoginScreen({ onLogin, message }: { onLogin: () => void; message: string }) {
-  return <main className="app login-screen"><section className="login-card"><picture className="login-illustration"><source media="(max-width: 899px)" srcSet={loginPrinterMobile} /><img src={loginPrinter} alt="Impressora e documentos" /></picture><div className="login-content"><p className="brand">CONTROLE</p><span className="login-brand-line" /><h1>Controle simples,<br />onde você estiver.</h1><p className="login-subtitle">Acesse seus orçamentos e planejamentos de impressão com praticidade.</p><button className="login-google" onClick={onLogin}><GoogleIcon />Entrar com Google</button><p className="login-hint"><span className="login-hint-desktop">Use sua conta Google para continuar</span><span className="login-hint-mobile">🔒 Seus dados ficam seguros com o Google.</span></p>{message && <p className="message">{message}</p>}</div></section></main>
+  return <main className="app login-screen"><section className="login-card"><picture className="login-illustration"><source media="(max-width: 899px)" srcSet={loginPrinter} /><img src={loginPrinter} alt="Impressora e documentos" /></picture><div className="login-content"><p className="brand">CONTROLE</p><span className="login-brand-line" /><h1>Controle simples,<br />onde você estiver.</h1><p className="login-subtitle">Acesse seus orçamentos e planejamentos de impressão com praticidade.</p><button className="login-google" onClick={onLogin}><GoogleIcon />Entrar com Google</button><p className="login-hint"><span className="login-hint-desktop">Use sua conta Google para continuar</span><span className="login-hint-mobile">🔒 Seus dados ficam seguros com o Google.</span></p>{message && <p className="message">{message}</p>}</div></section></main>
 }
 
 function QuoteCard({ quote, onClick, selected = false, showTotal = false }: { quote: Quote; onClick: () => void; selected?: boolean; showTotal?: boolean }) {

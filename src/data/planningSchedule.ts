@@ -17,10 +17,13 @@ const parseStart = (value: string) => {
 
 const format = (date: Date) => date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).replace(',', '')
 
-const endFor = (plan: SchedulablePlan, start: Date) => new Date(start.getTime() + (plan.hours * 60 + plan.minutes + plan.pause + plan.pauseDuring) * 60000)
+const endFor = (plan: SchedulablePlan, start: Date) => new Date(start.getTime() + (plan.hours * 60 + plan.minutes + plan.pauseDuring) * 60000)
 
 export const makeSequentialSchedule = <T extends SchedulablePlan>(plans: T[]) => {
-  const scheduled = plans.filter(plan => parseStart(plan.start)).sort((a, b) => parseStart(a.start)!.getTime() - parseStart(b.start)!.getTime())
+  const scheduled = plans.filter(plan => parseStart(plan.start)).sort((a, b) => {
+    const startDifference = parseStart(a.start)!.getTime() - parseStart(b.start)!.getTime()
+    return startDifference || Number(isRunning(b.status)) - Number(isRunning(a.status))
+  })
   const unscheduled = plans.filter(plan => !parseStart(plan.start))
   let previousEnd: Date | null = null
   const adjusted = scheduled.map(plan => {
@@ -30,7 +33,8 @@ export const makeSequentialSchedule = <T extends SchedulablePlan>(plans: T[]) =>
       return { ...plan }
     }
     if (!isPlanned(plan.status)) return { ...plan }
-    const start = previousEnd && requestedStart < previousEnd ? previousEnd : requestedStart
+    const availableAt = previousEnd && new Date(previousEnd.getTime() + plan.pause * 60000)
+    const start = availableAt && requestedStart < availableAt ? availableAt : requestedStart
     const end = endFor(plan, start)
     previousEnd = end
     return { ...plan, start: format(start), end: format(end) }
