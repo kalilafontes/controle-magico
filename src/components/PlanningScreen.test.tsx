@@ -2,11 +2,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const getPlans = vi.fn().mockResolvedValue([])
+const savePlan = vi.fn().mockResolvedValue(undefined)
 const deletePlan = vi.fn().mockResolvedValue(undefined)
 const synchronizeSchedule = vi.fn().mockResolvedValue(false)
 
 vi.mock('../data/planningRepository', () => ({
-  createPlanningRepository: () => ({ getPlans, savePlan: vi.fn(), deletePlan, synchronizeSchedule }),
+  createPlanningRepository: () => ({ getPlans, savePlan, deletePlan, synchronizeSchedule }),
 }))
 
 import { getPlanEndLabel, getPlanStatusClass, getPlanningWorkspaceClass, PlanningScreen, sortPlansForDesktop, sortPlansForTab } from './PlanningScreen'
@@ -17,6 +18,7 @@ describe('PlanningScreen', () => {
   beforeEach(() => {
     getPlans.mockReset()
     getPlans.mockResolvedValue([])
+    savePlan.mockClear()
     deletePlan.mockClear()
     synchronizeSchedule.mockClear()
   })
@@ -139,6 +141,20 @@ describe('PlanningScreen', () => {
     await waitFor(() => expect(deletePlan).toHaveBeenCalledWith(6))
   })
 
+  it('conclui a impressão pelo botão de confirmação da lista', async () => {
+    getPlans.mockResolvedValue([planned])
+    render(<PlanningScreen token="token" onBack={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Próximas' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Concluir Dumplin' }))
+
+    await waitFor(() => expect(savePlan).toHaveBeenCalledWith(expect.objectContaining({
+      row: 6,
+      piece: 'Dumplin',
+      status: 'Concluído',
+    })))
+  })
+
   it('expande a lista no desktop quando não há planejamento selecionado', () => {
     expect(getPlanningWorkspaceClass(false)).toBe('planning-workspace')
     expect(getPlanningWorkspaceClass(true)).toBe('planning-workspace has-selection')
@@ -160,6 +176,15 @@ describe('PlanningScreen', () => {
     ] as never[]
 
     expect(sortPlansForDesktop(plans).map(plan => plan.piece)).toEqual(['Imprimindo', 'Planejado', 'Pausado', 'Concluído'])
+  })
+
+  it('mostra os concluídos mais recentes primeiro na lista ampla', () => {
+    const plans = [
+      { row: 5, piece: 'Concluído antigo', start: '28/09/2026 08:00', end: '28/09/2026 10:00', status: 'Concluído' },
+      { row: 6, piece: 'Concluído recente', start: '28/09/2026 12:00', end: '28/09/2026 15:00', status: 'Concluído' },
+    ] as never[]
+
+    expect(sortPlansForDesktop(plans).map(plan => plan.piece)).toEqual(['Concluído recente', 'Concluído antigo'])
   })
 
   it('atribui uma classe de tag para cada status de produção', () => {

@@ -20,7 +20,7 @@ const format = (date: Date) => date.toLocaleString('pt-BR', { dateStyle: 'short'
 
 const endFor = (plan: SchedulablePlan, start: Date) => new Date(start.getTime() + (plan.hours * 60 + plan.minutes + plan.pauseDuring) * 60000)
 
-export const makeSequentialSchedule = <T extends SchedulablePlan>(plans: T[]) => {
+export const makeSequentialSchedule = <T extends SchedulablePlan>(plans: T[], now = new Date()) => {
   const scheduled = plans.filter(plan => parseStart(plan.start)).sort((a, b) => {
     const startDifference = parseStart(a.start)!.getTime() - parseStart(b.start)!.getTime()
     return startDifference || Number(isRunning(b.status)) - Number(isRunning(a.status))
@@ -35,7 +35,7 @@ export const makeSequentialSchedule = <T extends SchedulablePlan>(plans: T[]) =>
     }
     if (!isPlanned(plan.status)) return { ...plan }
     const availableAt = previousEnd && new Date(previousEnd.getTime() + plan.pause * 60000)
-    const start = availableAt && requestedStart < availableAt ? availableAt : requestedStart
+    const start = new Date(Math.max(requestedStart.getTime(), availableAt?.getTime() ?? Number.NEGATIVE_INFINITY, now.getTime()))
     const end = endFor(plan, start)
     previousEnd = end
     return { ...plan, start: format(start), end: format(end) }
@@ -44,7 +44,7 @@ export const makeSequentialSchedule = <T extends SchedulablePlan>(plans: T[]) =>
 }
 
 export const reorderPlannedStarts = <T extends ReorderablePlan>(plans: T[], draggedRow: number, targetRow: number, placement: 'before' | 'after') => {
-  const planned = plans.filter(plan => isPlanned(plan.status))
+  const planned = plans.filter(plan => isPlanned(plan.status)).sort((a, b) => (parseStart(a.start)?.getTime() ?? Number.POSITIVE_INFINITY) - (parseStart(b.start)?.getTime() ?? Number.POSITIVE_INFINITY))
   const draggedIndex = planned.findIndex(plan => plan.row === draggedRow)
   const targetIndex = planned.findIndex(plan => plan.row === targetRow)
   if (draggedIndex < 0 || targetIndex < 0 || draggedIndex === targetIndex) return plans

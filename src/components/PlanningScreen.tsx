@@ -27,7 +27,13 @@ export const sortPlansForTab = (plans: PrintPlan[], tab: Tab) => {
 
 export const sortPlansForDesktop = (plans: PrintPlan[]) => {
   const priority: Record<string, number> = { 'em impressão': 0, imprimindo: 0, planejado: 1, pausado: 2, concluído: 3, cancelado: 3 }
-  return [...plans].sort((a, b) => (priority[a.status.trim().toLowerCase()] ?? 4) - (priority[b.status.trim().toLowerCase()] ?? 4) || dateValue(a.start) - dateValue(b.start))
+  return [...plans].sort((a, b) => {
+    const aPriority = priority[a.status.trim().toLowerCase()] ?? 4
+    const bPriority = priority[b.status.trim().toLowerCase()] ?? 4
+    if (aPriority !== bPriority) return aPriority - bPriority
+    if (aPriority === 3) return dateValue(b.end) - dateValue(a.end)
+    return dateValue(a.start) - dateValue(b.start)
+  })
 }
 
 const estimateEnd = (plan: PrintPlan) => {
@@ -150,6 +156,18 @@ export function PlanningScreen({ token, onBack, onUpdated, onSessionExpired }: {
   const tabs = [['andamento', 'Em andamento'], ['proximas', 'Próximas'], ['pausadas', 'Pausadas'], ['concluidas', 'Concluídas']] as [Tab, string][]
   const selectPlan = (plan: PrintPlan) => setDraft(plan)
   const duplicatePlan = (plan: PrintPlan) => setDraft({ ...plan, row: undefined, order: '', start: duplicateStart(plan), end: '', duration: '', status: 'Planejado' })
+  const completePlan = async (plan: PrintPlan) => {
+    if (!plan.row) return
+    try {
+      await repo.savePlan({ ...plan, status: 'Concluído', end: estimateEnd(plan) || plan.end })
+      await repo.synchronizeSchedule(await repo.getPlans())
+      setDraft(current => current?.row === plan.row ? null : current)
+      await load()
+      onUpdated?.()
+    } catch (e) {
+      handleError('Não foi possível concluir o planejamento', e)
+    }
+  }
   const movePlan = async (target: PrintPlan, placement: 'before' | 'after') => {
     const dragged = draggedRowRef.current
     if (!dragged || !target.row) return
@@ -164,7 +182,7 @@ export function PlanningScreen({ token, onBack, onUpdated, onSessionExpired }: {
       handleError('Não foi possível reordenar o planejamento', e)
     }
   }
-  const renderPlanList = (items: PrintPlan[], listTab?: Tab) => <PlanList plans={items} selectedRow={draft?.row} onSelect={selectPlan} onDelete={setPlanToDelete} onDuplicate={duplicatePlan} onDragStart={row => { draggedRowRef.current = row }} onDragEnd={() => { draggedRowRef.current = null; setDropTarget(null) }} onDragOverPlan={setDropTarget} onDropPlan={movePlan} dropTarget={dropTarget} tab={listTab} />
+  const renderPlanList = (items: PrintPlan[], listTab?: Tab) => <PlanList plans={items} selectedRow={draft?.row} onSelect={selectPlan} onDelete={setPlanToDelete} onDuplicate={duplicatePlan} onComplete={completePlan} onDragStart={row => { draggedRowRef.current = row }} onDragEnd={() => { draggedRowRef.current = null; setDropTarget(null) }} onDragOverPlan={setDropTarget} onDropPlan={movePlan} dropTarget={dropTarget} tab={listTab} />
 
   return <><section className="planning-screen">
     {!desktop && (draft ? <><button className="back" onClick={() => setDraft(null)}>← Voltar para planejamentos</button><h1>Detalhes do planejamento</h1>{error && <p className="message">{error}</p>}<PlanningEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setDraft(null)} onDelete={() => setPlanToDelete(draft)} /></> : <><div className="planning-mobile-header"><button className="back" onClick={onBack}>← Voltar para orçamentos</button><h1>Planejamento de impressão</h1>{error && <p className="message">{error}</p>}{active && <button className="print-now" onClick={() => selectPlan(active)}><small>IMPRIMINDO AGORA</small><b>{active.quantity > 1 ? `${active.quantity}x ` : ''}{active.piece}</b><span>{active.details} · termina {active.end || estimateEnd(active) || '—'}</span></button>}<button onClick={() => setDraft(empty())}>＋ Nova impressão</button><div className="plan-tabs">{tabs.map(([id, label]) => <button className={tab === id ? 'selected' : ''} onClick={() => setTab(id)} key={id}>{label}</button>)}</div></div><div className="planning-mobile-list">{renderPlanList(visible, tab)}</div></>)}
@@ -172,12 +190,13 @@ export function PlanningScreen({ token, onBack, onUpdated, onSessionExpired }: {
   </section>{deletionDialog}</>
 }
 
-function PlanList({ plans, selectedRow, onSelect, onDelete, onDuplicate, onDragStart, onDragEnd, onDragOverPlan, onDropPlan, dropTarget, tab }: { plans: PrintPlan[]; selectedRow?: number; onSelect: (plan: PrintPlan) => void; onDelete: (plan: PrintPlan) => void; onDuplicate: (plan: PrintPlan) => void; onDragStart: (row: number) => void; onDragEnd: () => void; onDragOverPlan: (target: { row: number; placement: 'before' | 'after' }) => void; onDropPlan: (plan: PrintPlan, placement: 'before' | 'after') => void; dropTarget: { row: number; placement: 'before' | 'after' } | null; tab?: Tab }) {
+function PlanList({ plans, selectedRow, onSelect, onDelete, onDuplicate, onComplete, onDragStart, onDragEnd, onDragOverPlan, onDropPlan, dropTarget, tab }: { plans: PrintPlan[]; selectedRow?: number; onSelect: (plan: PrintPlan) => void; onDelete: (plan: PrintPlan) => void; onDuplicate: (plan: PrintPlan) => void; onComplete: (plan: PrintPlan) => void; onDragStart: (row: number) => void; onDragEnd: () => void; onDragOverPlan: (target: { row: number; placement: 'before' | 'after' }) => void; onDropPlan: (plan: PrintPlan, placement: 'before' | 'after') => void; dropTarget: { row: number; placement: 'before' | 'after' } | null; tab?: Tab }) {
   return plans.length ? <>{plans.map(plan => {
     const movable = plan.status === 'Planejado' && Boolean(plan.row)
     const placement = (event: { currentTarget: { getBoundingClientRect: () => DOMRect }; clientY: number }) => { const bounds = event.currentTarget.getBoundingClientRect(); return event.clientY > bounds.top + bounds.height / 2 ? 'after' : 'before' as const }
     const dropClass = dropTarget && dropTarget.row === plan.row ? `drop-${dropTarget.placement}` : ''
-    return <article className={`plan-item ${selectedRow === plan.row ? 'selected' : ''} ${dropClass}`} key={plan.row}><button className={`quote plan-card ${tab || ''}`} aria-current={selectedRow === plan.row || undefined} draggable={movable} onDragStart={event => { if (!movable) return; event.dataTransfer?.setData('text/plain', String(plan.row)); if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'; onDragStart(plan.row!) }} onDragEnd={onDragEnd} onDragOver={movable ? event => { event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'; onDragOverPlan({ row: plan.row!, placement: placement(event) }) } : undefined} onDrop={movable ? event => { event.preventDefault(); onDropPlan(plan, placement(event)) } : undefined} onClick={() => onSelect(plan)}><b>{plan.quantity > 1 ? `${plan.quantity}x ` : ''}{plan.piece}</b><span><em className={`plan-status ${getPlanStatusClass(plan.status)}`}>{plan.status}</em></span><small>▣ Início: {plan.start || '—'}{getPlanEndLabel(plan) ? ` · Previsão: ${getPlanEndLabel(plan)}` : ''}</small></button>{plan.row && <><button className="plan-copy" aria-label={`Duplicar ${plan.piece}`} onClick={() => onDuplicate(plan)}><CopyIcon /></button><button className="plan-delete" aria-label={`Apagar ${plan.piece}`} onClick={() => onDelete(plan)}><TrashIcon /></button></>}</article>
+    const canComplete = !['concluído', 'cancelado'].includes(plan.status.trim().toLowerCase())
+    return <article className={`plan-item ${selectedRow === plan.row ? 'selected' : ''} ${dropClass}`} key={plan.row}><button className={`quote plan-card ${tab || ''}`} aria-current={selectedRow === plan.row || undefined} draggable={movable} onDragStart={event => { if (!movable) return; event.dataTransfer?.setData('text/plain', String(plan.row)); if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'; onDragStart(plan.row!) }} onDragEnd={onDragEnd} onDragOver={movable ? event => { event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'; onDragOverPlan({ row: plan.row!, placement: placement(event) }) } : undefined} onDrop={movable ? event => { event.preventDefault(); onDropPlan(plan, placement(event)) } : undefined} onClick={() => onSelect(plan)}><b>{plan.quantity > 1 ? `${plan.quantity}x ` : ''}{plan.piece}</b><span><em className={`plan-status ${getPlanStatusClass(plan.status)}`}>{plan.status}</em></span><small>▣ Início: {plan.start || '—'}{getPlanEndLabel(plan) ? ` · Previsão: ${getPlanEndLabel(plan)}` : ''}</small></button>{plan.row && <><button className="plan-copy" aria-label={`Duplicar ${plan.piece}`} onClick={() => onDuplicate(plan)}><CopyIcon /></button>{canComplete && <button className="plan-complete" aria-label={`Concluir ${plan.piece}`} onClick={() => onComplete(plan)}><CheckIcon /></button>}<button className="plan-delete" aria-label={`Apagar ${plan.piece}`} onClick={() => onDelete(plan)}><TrashIcon /></button></>}</article>
   })}</> : <p className="empty">Nenhuma impressão nesta etapa.</p>
 }
 
@@ -189,3 +208,4 @@ function PlanningEditor({ draft, onChange, onSave, onCancel, onDelete }: { draft
 
 function TrashIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M9 7l1-3h4l1 3M6 7l1 13h10l1-13" /></svg> }
 function CopyIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="1" /><path d="M15 9V6a1 1 0 0 0-1-1H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h3" /></svg> }
+function CheckIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4.5 4.5L19 7" /></svg> }

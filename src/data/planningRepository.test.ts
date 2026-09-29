@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPlanningRepository, findFormulaSourceRow, getEndFormula, mapPlanRow, type PrintPlan } from './planningRepository'
 
 describe('mapPlanRow', () => {
@@ -11,6 +11,13 @@ describe('mapPlanRow', () => {
 
 describe('createPlanningRepository', () => {
   const response = (body: unknown) => ({ ok: true, json: async () => body }) as Response
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 8, 28, 8))
+  })
+
+  afterEach(() => vi.useRealTimers())
 
   it('consulta o planejamento na planilha dedicada', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response({ values: [] }))
