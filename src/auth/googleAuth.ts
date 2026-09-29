@@ -16,16 +16,35 @@ export function getSavedToken() {
   return token.value
 }
 
+export const getProfileFirstName = (profile: { given_name?: string; name?: string }) => (profile.given_name || profile.name || '').trim().split(/\s+/)[0] || ''
+
+export function getSavedProfileName() {
+  return localStorage.getItem('orcamentos-profile-name') || sessionStorage.getItem('orcamentos-profile-name') || ''
+}
+
+export async function getGoogleProfileName(token: string) {
+  const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${token}` } })
+  if (!response.ok) return ''
+  const name = getProfileFirstName(await response.json() as { given_name?: string; name?: string })
+  if (name) {
+    localStorage.setItem('orcamentos-profile-name', name)
+    sessionStorage.setItem('orcamentos-profile-name', name)
+  }
+  return name
+}
+
 export function clearSavedToken() {
   localStorage.removeItem('orcamentos-token')
   sessionStorage.removeItem('orcamentos-token')
+  localStorage.removeItem('orcamentos-profile-name')
+  sessionStorage.removeItem('orcamentos-profile-name')
 }
 
 export function signInWithGoogle(clientId: string, silent = false): Promise<string> {
   return new Promise((resolve, reject) => {
     const begin = () => window.google?.accounts.oauth2.initTokenClient({
       client_id: clientId,
-      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      scope: 'https://www.googleapis.com/auth/spreadsheets openid https://www.googleapis.com/auth/userinfo.profile',
       callback: (response: { access_token?: string; expires_in?: number; error?: string }) => { if (!response.access_token) return reject(new Error(response.error || 'Login cancelado')); const saved = JSON.stringify({ value: response.access_token, expiresAt: Date.now() + (response.expires_in || 3600) * 1000 }); localStorage.setItem('orcamentos-token', saved); sessionStorage.setItem('orcamentos-token', saved); resolve(response.access_token) },
     }).requestAccessToken({ prompt: silent ? '' : 'consent' })
     if (window.google) return begin()

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentType } from 'react'
 import { getAppConfig } from './config'
-import { clearSavedToken, getSavedToken, signInWithGoogle } from './auth/googleAuth'
+import { clearSavedToken, getGoogleProfileName, getSavedProfileName, getSavedToken, signInWithGoogle } from './auth/googleAuth'
 import { localConfig } from './localConfig'
 import { createSheetsRepository } from './data/sheetsRepository'
 import { createPlanningRepository, type PrintPlan } from './data/planningRepository'
@@ -19,6 +19,7 @@ export const getQuoteWorkspaceClass = (hasSelection: boolean) => hasSelection ? 
 
 export default function App() {
   const [token, setToken] = useState(() => getSavedToken() || '')
+  const [profileName, setProfileName] = useState(getSavedProfileName)
   const [sessionExpired, setSessionExpired] = useState(false)
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [plans, setPlans] = useState<PrintPlan[]>([])
@@ -35,8 +36,13 @@ export default function App() {
 
   useEffect(() => {
     if (token || sessionExpired) return
-    signInWithGoogle(config.googleClientId, true).then(setToken).catch(() => undefined)
+    signInWithGoogle(config.googleClientId, true).then(access => { setToken(access); getGoogleProfileName(access).then(setProfileName) }).catch(() => undefined)
   }, [token, sessionExpired])
+
+  useEffect(() => {
+    if (!token || profileName) return
+    getGoogleProfileName(token).then(setProfileName).catch(() => undefined)
+  }, [token, profileName])
 
   useEffect(() => {
     if (!repository || !token) return
@@ -48,6 +54,7 @@ export default function App() {
     try {
       const access = await signInWithGoogle(config.googleClientId)
       setToken(access)
+      setProfileName(await getGoogleProfileName(access))
       setSessionExpired(false)
       setQuotes(await createSheetsRepository(config.spreadsheetId, access).getQuotes())
       setPlans(await createPlanningRepository(access).getPlans())
@@ -57,7 +64,7 @@ export default function App() {
   }
 
   const openNewQuote = () => { setDraft(createDraftQuote()); setNewQuote(true); goTo('quotes') }
-  const expireSession = () => { clearSavedToken(); setToken(''); setQuotes([]); setPlans([]); setSessionExpired(true); setMessage('') }
+  const expireSession = () => { clearSavedToken(); setToken(''); setProfileName(''); setQuotes([]); setPlans([]); setSessionExpired(true); setMessage('') }
   const editQuote = (quote: Quote) => { setDraft(quote); setNewQuote(true); goTo('quotes') }
   const save = async () => {
     try {
@@ -98,7 +105,7 @@ export default function App() {
 
   return <main className="app app-with-nav home-dashboard">
     <p className="brand">CONTROLE</p>
-    <header className="home-header"><div><h1>Olá, Kalila <span className="heart">♡</span></h1><p className="subtitle">Planejamento de impressão da sua loja ✨</p></div><button className="new-quote" onClick={openNewQuote}>＋ <span>Novo orçamento</span> →</button></header>
+    <header className="home-header"><div><h1>Olá{profileName ? `, ${profileName}` : ''} <span className="heart">♡</span></h1><p className="subtitle">Planejamento de impressão da sua loja ✨</p></div><button className="new-quote" onClick={openNewQuote}>＋ <span>Novo orçamento</span> →</button></header>
     {message && <p className="message">{message}</p>}
     <div className="dashboard-grid"><section className="home-section"><div className="section-title"><strong>Orçamentos</strong><button onClick={() => goTo('quotes')}>Ver todos ›</button></div><QuoteList quotes={latestQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} /></section>
     <section className="home-section print-section"><div className="section-title"><strong>Impressões de hoje</strong>{activePrintsCount > 0 && <em className="production-count">{activePrintsCount} em produção</em>}<button onClick={() => goTo('planning')}>Ver todas ›</button></div>{todayPrints.length ? todayPrints.map(plan => <PrintCard key={plan.row} plan={plan} onClick={() => goTo('planning')} />) : <p className="empty">Nenhuma impressão em andamento.</p>}</section></div>

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { clearSavedToken, getSavedToken, toAuthErrorMessage } from './googleAuth'
+import { clearSavedToken, getProfileFirstName, getSavedToken, toAuthErrorMessage } from './googleAuth'
 
 describe('mensagens de autenticação', () => {
   beforeEach(() => { sessionStorage.clear(); localStorage.clear() })
@@ -29,5 +29,11 @@ describe('mensagens de autenticação', () => {
 
     expect(sessionStorage.getItem('orcamentos-token')).toBeNull()
     expect(localStorage.getItem('orcamentos-token')).toBeNull()
+  })
+
+  it('usa o primeiro nome retornado pelo perfil Google', () => {
+    expect(getProfileFirstName({ given_name: 'Kalila Maria', name: 'Kalila Maria Fontes' })).toBe('Kalila')
+    expect(getProfileFirstName({ name: 'Maria Fontes' })).toBe('Maria')
+    expect(getProfileFirstName({})).toBe('')
   })
 })
