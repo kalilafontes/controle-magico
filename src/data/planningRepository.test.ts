@@ -103,4 +103,20 @@ describe('createPlanningRepository', () => {
     expect(body.data).toContainEqual({ range: 'Planejamento!I6', values: [['=H6+E6/24+F6/1440+L6/1440']] })
     fetchMock.mockRestore()
   })
+
+  it('grava os horários reordenados comparando com o planejamento original', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response({}))
+    const original = [
+      { row: 6, order: '1', piece: 'Primeiro', quantity: 1, details: '', hours: 1, minutes: 0, pause: 0, start: '29/09/2026 10:00', end: '', duration: '', status: 'Planejado', pauseDuring: 0, occurrence: '' },
+      { row: 7, order: '2', piece: 'Segundo', quantity: 1, details: '', hours: 1, minutes: 0, pause: 0, start: '29/09/2026 11:00', end: '', duration: '', status: 'Planejado', pauseDuring: 0, occurrence: '' },
+    ]
+    const reordered = [{ ...original[0], start: '29/09/2026 11:00' }, { ...original[1], start: '29/09/2026 10:00' }]
+
+    await createPlanningRepository('token').synchronizeSchedule(reordered, original)
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
+    expect(body.data).toContainEqual({ range: 'Planejamento!H6', values: [['29/09/2026 11:00']] })
+    expect(body.data).toContainEqual({ range: 'Planejamento!H7', values: [['29/09/2026 10:00']] })
+    fetchMock.mockRestore()
+  })
 })

@@ -112,9 +112,9 @@ export function createPlanningRepository(token: string) {
       body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: row - 1, endIndex: row } } }] }),
     })
   }
-  const synchronizeSchedule = async (plans: PrintPlan[]) => {
+  const synchronizeSchedule = async (plans: PrintPlan[], originalPlans: PrintPlan[] = plans) => {
     const ordered = assignPlanningOrder(makeSequentialSchedule(plans))
-    const originalByRow = new Map(plans.map(plan => [plan.row, plan]))
+    const originalByRow = new Map(originalPlans.map(plan => [plan.row, plan]))
     const data = ordered.filter(plan => plan.row && plan.status === 'Planejado').flatMap(plan => {
       const row = plan.row
       if (!row) return []

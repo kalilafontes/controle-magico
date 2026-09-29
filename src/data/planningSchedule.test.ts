@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { makeSequentialSchedule } from './planningSchedule'
+import { makeSequentialSchedule, reorderPlannedStarts } from './planningSchedule'
 
 describe('makeSequentialSchedule', () => {
   it('adia a próxima impressão que começaria antes do fim da anterior', () => {
@@ -49,5 +49,21 @@ describe('makeSequentialSchedule', () => {
     expect(schedule[0]).toMatchObject({ start: '28/09/2026 09:58', end: '28/09/2026 12:08' })
     expect(schedule[1]).toMatchObject({ start: '28/09/2026 10:20', end: '28/09/2026 11:20' })
     expect(schedule[2]).toMatchObject({ start: '28/09/2026 12:08', end: '28/09/2026 13:08' })
+  })
+})
+
+describe('reorderPlannedStarts', () => {
+  it('move um planejamento para depois de outro sem deslocar a impressão em andamento', () => {
+    const plans = reorderPlannedStarts([
+      { row: 5, status: 'Em impressão', start: '29/09/2026 08:00' },
+      { row: 6, status: 'Planejado', start: '29/09/2026 10:00' },
+      { row: 7, status: 'Planejado', start: '29/09/2026 11:00' },
+    ], 6, 7, 'after')
+
+    expect(plans.map(plan => [plan.row, plan.start])).toEqual([
+      [5, '29/09/2026 08:00'],
+      [6, '29/09/2026 11:00'],
+      [7, '29/09/2026 10:00'],
+    ])
   })
 })

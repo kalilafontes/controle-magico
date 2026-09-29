@@ -407,6 +407,10 @@
     transition: width 0.2s ease, padding 0.2s ease;
   }
 
+  .bottom-nav button:not(.sidebar-toggle) {
+    width: 100%;
+  }
+
   .bottom-nav:before {
     transition: left 0.2s ease;
   }
@@ -437,18 +441,22 @@
   }
 
   .bottom-nav.collapsed:before {
-    content: 'C';
-    left: 31px;
+    display: none;
   }
 
   .bottom-nav.collapsed button:not(.sidebar-toggle) {
     justify-content: center;
     padding-left: 0;
     padding-right: 0;
+    transform: translateX(-5px);
   }
 
   .bottom-nav.collapsed button:not(.sidebar-toggle) span {
     display: none;
+  }
+
+  .bottom-nav.collapsed button.active {
+    background: #fde2ee;
   }
 
   .bottom-nav.collapsed .sidebar-toggle {
@@ -693,24 +701,24 @@
     display: block;
   }
 
-  .planning-list-panel .plan-card {
+  .planning-list-panel-flat .plan-card {
     min-height: 108px;
     margin: 10px 0;
     padding: 16px 58px 16px 17px;
   }
 
-  .planning-list-panel .plan-item.selected .plan-card {
+  .planning-list-panel-flat .plan-item.selected .plan-card {
     border-color: #e94486;
     background: #fff8fb;
     box-shadow: inset 0 0 0 1px #f4bdd4;
   }
 
-  .planning-list-panel .plan-card b {
+  .planning-list-panel-flat .plan-card b {
     font-size: 18px;
   }
 
-  .planning-list-panel .plan-card span,
-  .planning-list-panel .plan-card small {
+  .planning-list-panel-flat .plan-card span,
+  .planning-list-panel-flat .plan-card small {
     display: block;
     margin-top: 7px;
     color: #805b6d;

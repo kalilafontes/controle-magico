@@ -1,4 +1,5 @@
 type SchedulablePlan = { start: string; end: string; hours: number; minutes: number; pause: number; pauseDuring: number; status?: string }
+type ReorderablePlan = { row?: number; start: string; status?: string }
 
 const isRunning = (status = '') => ['em impressão', 'imprimindo', 'em andamento'].includes(status.trim().toLowerCase())
 const isPlanned = (status = '') => !status.trim() || status.trim().toLowerCase() === 'planejado'
@@ -40,4 +41,20 @@ export const makeSequentialSchedule = <T extends SchedulablePlan>(plans: T[]) =>
     return { ...plan, start: format(start), end: format(end) }
   })
   return [...adjusted, ...unscheduled]
+}
+
+export const reorderPlannedStarts = <T extends ReorderablePlan>(plans: T[], draggedRow: number, targetRow: number, placement: 'before' | 'after') => {
+  const planned = plans.filter(plan => isPlanned(plan.status))
+  const draggedIndex = planned.findIndex(plan => plan.row === draggedRow)
+  const targetIndex = planned.findIndex(plan => plan.row === targetRow)
+  if (draggedIndex < 0 || targetIndex < 0 || draggedIndex === targetIndex) return plans
+
+  const reordered = [...planned]
+  const [dragged] = reordered.splice(draggedIndex, 1)
+  let insertionIndex = targetIndex + (placement === 'after' ? 1 : 0)
+  if (draggedIndex < insertionIndex) insertionIndex -= 1
+  reordered.splice(insertionIndex, 0, dragged)
+
+  const startByRow = new Map(reordered.map((plan, index) => [plan.row, planned[index].start]))
+  return plans.map(plan => startByRow.has(plan.row) ? { ...plan, start: startByRow.get(plan.row)! } : plan)
 }

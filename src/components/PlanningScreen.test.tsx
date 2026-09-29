@@ -48,6 +48,51 @@ describe('PlanningScreen', () => {
     expect(sortPlansForTab(plans, 'andamento').map(plan => plan.piece)).toEqual(['Caixinha'])
   })
 
+  it('permite arrastar apenas cartões planejados', async () => {
+    getPlans.mockResolvedValue([planned, { ...planned, row: 7, piece: 'Em andamento', status: 'Em impressão' }])
+    render(<PlanningScreen token="token" onBack={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Próximas' }))
+
+    expect(screen.getByRole('button', { name: /Início: 28\/09\/2026 10:00/ })).toHaveAttribute('draggable', 'true')
+    expect(screen.getByRole('button', { name: /IMPRIMINDO AGORA/ })).not.toHaveAttribute('draggable', 'true')
+  })
+
+  it('abre os detalhes em uma tela móvel separada', async () => {
+    getPlans.mockResolvedValue([planned])
+    render(<PlanningScreen token="token" onBack={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Próximas' }))
+    fireEvent.click(screen.getByRole('button', { name: /Início: 28\/09\/2026 10:00/ }))
+
+    expect(screen.getByRole('button', { name: '← Voltar para planejamentos' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Início: 28\/09\/2026 10:00/ })).not.toBeInTheDocument()
+  })
+
+  it('salva a nova ordem quando um planejamento é solto depois de outro', async () => {
+    const first = { ...planned, start: '29/09/2026 10:00' }
+    const second = { ...planned, row: 7, piece: 'Segundo', start: '29/09/2026 11:00' }
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' }
+    getPlans.mockResolvedValue([first, second])
+    render(<PlanningScreen token="token" onBack={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Próximas' }))
+    synchronizeSchedule.mockClear()
+    fireEvent.dragStart(screen.getByRole('button', { name: /Início: 29\/09\/2026 11:00/ }), { dataTransfer })
+    expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', '7')
+    const target = screen.getByRole('button', { name: /Início: 29\/09\/2026 10:00/ })
+    fireEvent.dragOver(target, { dataTransfer })
+    fireEvent.drop(target, { dataTransfer })
+
+    await waitFor(() => expect(synchronizeSchedule).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ row: 6, start: '29/09/2026 11:00' }),
+      expect.objectContaining({ row: 7, start: '29/09/2026 10:00' }),
+    ]), expect.arrayContaining([
+      expect.objectContaining({ row: 6, start: '29/09/2026 10:00' }),
+      expect.objectContaining({ row: 7, start: '29/09/2026 11:00' }),
+    ])))
+  })
+
   it('calcula o fim quando o início está só com horário', async () => {
     render(<PlanningScreen token="token" onBack={vi.fn()} />)
     fireEvent.click(await screen.findByRole('button', { name: '＋ Nova impressão' }))
@@ -99,6 +144,13 @@ describe('PlanningScreen', () => {
     expect(getPlanningWorkspaceClass(true)).toBe('planning-workspace has-selection')
   })
 
+  it('não envolve a lista em um painel com título próprio', async () => {
+    render(<PlanningScreen token="token" onBack={vi.fn()} />)
+
+    await screen.findByRole('button', { name: '＋ Nova impressão' })
+    expect(screen.queryByRole('heading', { name: 'Planejamentos' })).not.toBeInTheDocument()
+  })
+
   it('ordena a lista ampla por impressão, planejado, pausado e concluído', () => {
     const plans = [
       { row: 5, piece: 'Concluído', start: '28/09/2026 10:00', status: 'Concluído' },
@@ -128,5 +180,20 @@ describe('PlanningScreen', () => {
     const plan = { start: '29/09/2026 07:30', end: '29/09/2026 09:00', hours: 2, minutes: 55, pause: 45, pauseDuring: 0, status: 'Planejado' } as never
 
     expect(getPlanEndLabel(plan)).toBe('29/09/2026 10:25')
+  })
+
+  it('duplica o planejamento a partir do fim original respeitando a pausa antes', async () => {
+    getPlans.mockResolvedValue([{ ...planned, pause: 15, pauseDuring: 5 }])
+    render(<PlanningScreen token="token" onBack={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Próximas' }))
+    const duplicateButton = screen.getByRole('button', { name: 'Duplicar Dumplin' })
+    expect(duplicateButton).toHaveAttribute('aria-label', 'Duplicar Dumplin')
+    expect(duplicateButton.querySelector('svg')).not.toBeNull()
+    fireEvent.click(duplicateButton)
+
+    expect(screen.getByLabelText('Início')).toHaveValue('28/09/2026 11:20')
+    expect(screen.getByLabelText('Status')).toHaveValue('Planejado')
+    expect(screen.getByLabelText('Peça / lote')).toHaveValue('Dumplin')
   })
 })
