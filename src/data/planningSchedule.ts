@@ -22,8 +22,10 @@ const endFor = (plan: SchedulablePlan, start: Date) => new Date(start.getTime() 
 
 export const makeSequentialSchedule = <T extends SchedulablePlan>(plans: T[], now = new Date()) => {
   const scheduled = plans.filter(plan => parseStart(plan.start)).sort((a, b) => {
+    const runningDifference = Number(isRunning(b.status)) - Number(isRunning(a.status))
+    if (runningDifference) return runningDifference
     const startDifference = parseStart(a.start)!.getTime() - parseStart(b.start)!.getTime()
-    return startDifference || Number(isRunning(b.status)) - Number(isRunning(a.status))
+    return startDifference
   })
   const unscheduled = plans.filter(plan => !parseStart(plan.start))
   let previousEnd: Date | null = null
@@ -35,7 +37,7 @@ export const makeSequentialSchedule = <T extends SchedulablePlan>(plans: T[], no
     }
     if (!isPlanned(plan.status)) return { ...plan }
     const availableAt = previousEnd && new Date(previousEnd.getTime() + plan.pause * 60000)
-    const start = new Date(Math.max(requestedStart.getTime(), availableAt?.getTime() ?? Number.NEGATIVE_INFINITY, now.getTime()))
+    const start = availableAt || new Date(Math.max(requestedStart.getTime(), now.getTime()))
     const end = endFor(plan, start)
     previousEnd = end
     return { ...plan, start: format(start), end: format(end) }

@@ -29,6 +29,15 @@ describe('makeSequentialSchedule', () => {
     expect(schedule[1]).toMatchObject({ start: '28/09/2026 12:08' })
   })
 
+  it('encadeia a próxima impressão após a ativa mesmo que ela tenha um horário futuro salvo', () => {
+    const schedule = makeSequentialSchedule([
+      { row: 5, status: 'Em impressão', start: '29/09/2026 20:14', end: '29/09/2026 23:09', hours: 2, minutes: 55, pause: 0, pauseDuring: 0 },
+      { row: 6, status: 'Planejado', start: '30/09/2026 05:04', end: '', hours: 8, minutes: 20, pause: 10, pauseDuring: 0 },
+    ], new Date(2026, 8, 29, 20, 14))
+
+    expect(schedule.find(plan => plan.row === 6)).toMatchObject({ start: '29/09/2026 23:19', end: '30/09/2026 07:39' })
+  })
+
   it('prioriza a impressão em andamento quando ela e a próxima têm o mesmo início', () => {
     const schedule = makeSequentialSchedule([
       { row: 6, status: 'Planejado', start: '29/09/2026 07:30', end: '', hours: 3, minutes: 15, pause: 0, pauseDuring: 0 },
