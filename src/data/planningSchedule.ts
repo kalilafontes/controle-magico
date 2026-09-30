@@ -33,21 +33,24 @@ export const makeSequentialSchedule = <T extends SchedulablePlan>(plans: T[], no
       return parseStart(a.start)!.getTime() - parseStart(b.start)!.getTime()
     })
     const unscheduled = printerPlans.filter(plan => !parseStart(plan.start))
+    const queued = [...scheduled, ...unscheduled.filter(plan => isPlanned(plan.status))]
+    const unchanged = unscheduled.filter(plan => !isPlanned(plan.status))
     let previousEnd: Date | null = null
-    const adjusted = scheduled.map(plan => {
-      const requestedStart = parseStart(plan.start)!
+    const adjusted = queued.map(plan => {
+      const requestedStart = parseStart(plan.start)
       if (isRunning(plan.status)) {
+        if (!requestedStart) return { ...plan }
         previousEnd = parseStart(plan.end) || endFor(plan, requestedStart)
         return { ...plan }
       }
       if (!isPlanned(plan.status)) return { ...plan }
       const availableAt = previousEnd && new Date(previousEnd.getTime() + plan.pause * 60000)
-      const start = availableAt || new Date(Math.max(requestedStart.getTime(), now.getTime()))
+      const start = availableAt || new Date(Math.max(requestedStart?.getTime() ?? Number.NEGATIVE_INFINITY, now.getTime()))
       const end = endFor(plan, start)
       previousEnd = end
       return { ...plan, start: format(start), end: format(end) }
     })
-    return [...adjusted, ...unscheduled]
+    return [...adjusted, ...unchanged]
   })
 }
 

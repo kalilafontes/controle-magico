@@ -22,7 +22,7 @@ describe('PlanningScreen', () => {
     deletePlan.mockClear()
     synchronizeSchedule.mockClear()
   })
-  afterEach(cleanup)
+  afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
   it('mostra a nova previsão de término ao incluir uma pausa', async () => {
     render(<PlanningScreen token="token" onBack={vi.fn()} />)
@@ -30,7 +30,10 @@ describe('PlanningScreen', () => {
 
     fireEvent.change(screen.getByLabelText('Início'), { target: { value: '22/09/2026 23:00' } })
     fireEvent.change(screen.getByLabelText('Horas'), { target: { value: '2' } })
-    fireEvent.change(screen.getByLabelText('Pausa durante (min)'), { target: { value: '5' } })
+    const pauseDuring = screen.getByText('Pausa durante (min)', { selector: 'label' }).querySelector('input')
+    expect(pauseDuring).not.toBeNull()
+    fireEvent.change(pauseDuring!, { target: { value: '5' } })
+    expect(pauseDuring).toHaveValue('5')
 
     expect(screen.getByText(/Previsão de término:/)).toHaveTextContent('23/09/2026 01:05')
   })
@@ -69,6 +72,18 @@ describe('PlanningScreen', () => {
 
     expect(screen.getByRole('button', { name: '← Voltar para planejamentos' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Início: 28\/09\/2026 10:00/ })).not.toBeInTheDocument()
+  })
+
+  it('fecha os detalhes pelo botão no cabeçalho', async () => {
+    getPlans.mockResolvedValue([planned])
+    render(<PlanningScreen token="token" onBack={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Próximas' }))
+    fireEvent.click(screen.getByRole('button', { name: /Início: 28\/09\/2026 10:00/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar planejamento' }))
+
+    expect(screen.queryByRole('heading', { name: 'Detalhes do planejamento' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Início: 28\/09\/2026 10:00/ })).toBeInTheDocument()
   })
 
   it('salva a nova ordem quando um planejamento é solto depois de outro', async () => {
@@ -165,6 +180,18 @@ describe('PlanningScreen', () => {
 
     await screen.findByRole('button', { name: '＋ Nova impressão' })
     expect(screen.queryByRole('heading', { name: 'Planejamentos' })).not.toBeInTheDocument()
+  })
+
+  it('filtra a lista ao selecionar o card de uma impressora', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    getPlans.mockResolvedValue([{ ...planned, printer: 'Bambu A1' }, { ...planned, row: 7, piece: 'Mini', printer: 'Bambu A1 2' }])
+    render(<PlanningScreen token="token" onBack={vi.fn()} />)
+
+    await screen.findByRole('button', { name: 'Bambu A1 2' })
+    fireEvent.click(screen.getByRole('button', { name: 'Bambu A1 2' }))
+
+    expect(screen.getByText('Mini')).toBeInTheDocument()
+    expect(screen.queryByText('Dumplin')).not.toBeInTheDocument()
   })
 
   it('ordena a lista ampla por impressão, planejado, pausado e concluído', () => {

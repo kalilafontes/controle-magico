@@ -49,6 +49,15 @@ describe('makeSequentialSchedule', () => {
     expect(schedule.find(plan => plan.row === 7)).toMatchObject({ start: '29/09/2026 20:14' })
   })
 
+  it('agenda um planejamento sem início após o último item da mesma impressora', () => {
+    const schedule = makeSequentialSchedule([
+      { row: 5, printer: 'Bambu A1', status: 'Planejado', start: '29/09/2026 20:00', end: '', hours: 2, minutes: 0, pause: 0, pauseDuring: 0 },
+      { row: 6, printer: 'Bambu A1', status: 'Planejado', start: '', end: '', hours: 1, minutes: 0, pause: 10, pauseDuring: 0 },
+    ], new Date(2026, 8, 29, 19))
+
+    expect(schedule.find(plan => plan.row === 6)).toMatchObject({ start: '29/09/2026 22:10', end: '29/09/2026 23:10' })
+  })
+
   it('prioriza a impressão em andamento quando ela e a próxima têm o mesmo início', () => {
     const schedule = makeSequentialSchedule([
       { row: 6, status: 'Planejado', start: '29/09/2026 07:30', end: '', hours: 3, minutes: 15, pause: 0, pauseDuring: 0 },
