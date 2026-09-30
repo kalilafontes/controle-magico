@@ -10,7 +10,7 @@ vi.mock('../data/planningRepository', () => ({
   createPlanningRepository: () => ({ getPlans, savePlan, deletePlan, synchronizeSchedule }),
 }))
 
-import { getPlanEndLabel, getPlanStatusClass, getPlanningWorkspaceClass, PlanningScreen, sortPlansForDesktop, sortPlansForTab } from './PlanningScreen'
+import { getPlanDurationLabel, getPlanEndLabel, getPlanStatusClass, getPlanningWorkspaceClass, PlanningScreen, sortPlansForDesktop, sortPlansForTab } from './PlanningScreen'
 
 describe('PlanningScreen', () => {
   const planned = { row: 6, order: '1', piece: 'Dumplin', quantity: 1, details: '', hours: 1, minutes: 0, pause: 0, start: '28/09/2026 10:00', end: '', duration: '', status: 'Planejado', pauseDuring: 0, occurrence: '' }
@@ -232,6 +232,12 @@ describe('PlanningScreen', () => {
     const plan = { start: '29/09/2026 07:30', end: '29/09/2026 09:00', hours: 2, minutes: 55, pause: 45, pauseDuring: 0, status: 'Planejado' } as never
 
     expect(getPlanEndLabel(plan)).toBe('29/09/2026 10:25')
+  })
+
+  it('mostra a duração total da impressão incluindo a pausa durante', () => {
+    const plan = { hours: 3, minutes: 10, pauseDuring: 5 } as never
+
+    expect(getPlanDurationLabel(plan)).toBe('3h15')
   })
 
   it('duplica o planejamento a partir do fim original respeitando a pausa antes', async () => {

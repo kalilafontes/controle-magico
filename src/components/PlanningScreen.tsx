@@ -56,6 +56,14 @@ const estimateEnd = (plan: PrintPlan) => {
   return fullDate ? date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).replace(',', '') : date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
+export const getPlanDurationLabel = (plan: Pick<PrintPlan, 'hours' | 'minutes' | 'pauseDuring'>) => {
+  const totalMinutes = plan.hours * 60 + plan.minutes + plan.pauseDuring
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (!hours) return `${minutes}min`
+  return minutes ? `${hours}h${String(minutes).padStart(2, '0')}` : `${hours}h`
+}
+
 const duplicateStart = (plan: PrintPlan) => {
   const fullDate = plan.start.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/)
   const timeOnly = plan.start.match(/^(\d{2}):(\d{2})$/)
@@ -205,7 +213,7 @@ function PlanList({ plans, selectedRow, onSelect, onDelete, onDuplicate, onCompl
     const placement = (event: { currentTarget: { getBoundingClientRect: () => DOMRect }; clientY: number }) => { const bounds = event.currentTarget.getBoundingClientRect(); return event.clientY > bounds.top + bounds.height / 2 ? 'after' : 'before' as const }
     const dropClass = dropTarget && dropTarget.row === plan.row ? `drop-${dropTarget.placement}` : ''
     const canComplete = !['concluído', 'cancelado'].includes(plan.status.trim().toLowerCase())
-    return <article className={`plan-item ${selectedRow === plan.row ? 'selected' : ''} ${dropClass}`} key={plan.row}><button className={`quote plan-card ${tab || ''}`} aria-current={selectedRow === plan.row || undefined} draggable={movable} onDragStart={event => { if (!movable) return; event.dataTransfer?.setData('text/plain', String(plan.row)); if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'; onDragStart(plan.row!) }} onDragEnd={onDragEnd} onDragOver={movable ? event => { event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'; onDragOverPlan({ row: plan.row!, placement: placement(event) }) } : undefined} onDrop={movable ? event => { event.preventDefault(); onDropPlan(plan, placement(event)) } : undefined} onClick={() => onSelect(plan)}><b>{plan.quantity > 1 ? `${plan.quantity}x ` : ''}{plan.piece}</b><span><em className={`plan-status ${getPlanStatusClass(plan.status)}`}>{plan.status}</em><em className="printer-tag">▣ {plan.printer || 'Bambu A1'}</em></span><small>▣ Início: {plan.start || '—'}{getPlanEndLabel(plan) ? ` · Previsão: ${getPlanEndLabel(plan)}` : ''}</small></button>{plan.row && <>{canComplete && <button className="plan-complete" aria-label={`Concluir ${plan.piece}`} onClick={() => onComplete(plan)}><CheckIcon /></button>}<button className="plan-copy" aria-label={`Duplicar ${plan.piece}`} onClick={() => onDuplicate(plan)}><CopyIcon /></button><button className="plan-delete" aria-label={`Apagar ${plan.piece}`} onClick={() => onDelete(plan)}><TrashIcon /></button></>}</article>
+    return <article className={`plan-item ${selectedRow === plan.row ? 'selected' : ''} ${dropClass}`} key={plan.row}><button className={`quote plan-card ${tab || ''}`} aria-current={selectedRow === plan.row || undefined} draggable={movable} onDragStart={event => { if (!movable) return; event.dataTransfer?.setData('text/plain', String(plan.row)); if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'; onDragStart(plan.row!) }} onDragEnd={onDragEnd} onDragOver={movable ? event => { event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'; onDragOverPlan({ row: plan.row!, placement: placement(event) }) } : undefined} onDrop={movable ? event => { event.preventDefault(); onDropPlan(plan, placement(event)) } : undefined} onClick={() => onSelect(plan)}><b>{plan.quantity > 1 ? `${plan.quantity}x ` : ''}{plan.piece}</b><span><em className={`plan-status ${getPlanStatusClass(plan.status)}`}>{plan.status}</em><em className="printer-tag">▣ {plan.printer || 'Bambu A1'}</em></span><small>▣ Início: {plan.start || '—'}{getPlanEndLabel(plan) ? ` · Previsão: ${getPlanEndLabel(plan)}` : ''} · Duração: {getPlanDurationLabel(plan)}</small></button>{plan.row && <>{canComplete && <button className="plan-complete" aria-label={`Concluir ${plan.piece}`} onClick={() => onComplete(plan)}><CheckIcon /></button>}<button className="plan-copy" aria-label={`Duplicar ${plan.piece}`} onClick={() => onDuplicate(plan)}><CopyIcon /></button><button className="plan-delete" aria-label={`Apagar ${plan.piece}`} onClick={() => onDelete(plan)}><TrashIcon /></button></>}</article>
   })}</> : <p className="empty">Nenhuma impressão nesta etapa.</p>
 }
 
