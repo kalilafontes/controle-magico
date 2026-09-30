@@ -1,4 +1,4 @@
-type SchedulablePlan = { start: string; end: string; hours: number; minutes: number; pause: number; pauseDuring: number; status?: string }
+type SchedulablePlan = { start: string; end: string; hours: number; minutes: number; pause: number; pauseDuring: number; status?: string; printer?: string }
 type ReorderablePlan = { row?: number; start: string; status?: string }
 
 const isRunning = (status = '') => ['em impressão', 'imprimindo', 'em andamento'].includes(status.trim().toLowerCase())
@@ -21,28 +21,34 @@ const format = (date: Date) => date.toLocaleString('pt-BR', { dateStyle: 'short'
 const endFor = (plan: SchedulablePlan, start: Date) => new Date(start.getTime() + (plan.hours * 60 + plan.minutes + plan.pauseDuring) * 60000)
 
 export const makeSequentialSchedule = <T extends SchedulablePlan>(plans: T[], now = new Date()) => {
-  const scheduled = plans.filter(plan => parseStart(plan.start)).sort((a, b) => {
-    const runningDifference = Number(isRunning(b.status)) - Number(isRunning(a.status))
-    if (runningDifference) return runningDifference
-    const startDifference = parseStart(a.start)!.getTime() - parseStart(b.start)!.getTime()
-    return startDifference
+  const byPrinter = new Map<string, T[]>()
+  plans.forEach(plan => {
+    const printer = plan.printer || 'Bambu A1'
+    byPrinter.set(printer, [...(byPrinter.get(printer) || []), plan])
   })
-  const unscheduled = plans.filter(plan => !parseStart(plan.start))
-  let previousEnd: Date | null = null
-  const adjusted = scheduled.map(plan => {
-    const requestedStart = parseStart(plan.start)!
-    if (isRunning(plan.status)) {
-      previousEnd = parseStart(plan.end) || endFor(plan, requestedStart)
-      return { ...plan }
-    }
-    if (!isPlanned(plan.status)) return { ...plan }
-    const availableAt = previousEnd && new Date(previousEnd.getTime() + plan.pause * 60000)
-    const start = availableAt || new Date(Math.max(requestedStart.getTime(), now.getTime()))
-    const end = endFor(plan, start)
-    previousEnd = end
-    return { ...plan, start: format(start), end: format(end) }
+  return [...byPrinter.values()].flatMap(printerPlans => {
+    const scheduled = printerPlans.filter(plan => parseStart(plan.start)).sort((a, b) => {
+      const runningDifference = Number(isRunning(b.status)) - Number(isRunning(a.status))
+      if (runningDifference) return runningDifference
+      return parseStart(a.start)!.getTime() - parseStart(b.start)!.getTime()
+    })
+    const unscheduled = printerPlans.filter(plan => !parseStart(plan.start))
+    let previousEnd: Date | null = null
+    const adjusted = scheduled.map(plan => {
+      const requestedStart = parseStart(plan.start)!
+      if (isRunning(plan.status)) {
+        previousEnd = parseStart(plan.end) || endFor(plan, requestedStart)
+        return { ...plan }
+      }
+      if (!isPlanned(plan.status)) return { ...plan }
+      const availableAt = previousEnd && new Date(previousEnd.getTime() + plan.pause * 60000)
+      const start = availableAt || new Date(Math.max(requestedStart.getTime(), now.getTime()))
+      const end = endFor(plan, start)
+      previousEnd = end
+      return { ...plan, start: format(start), end: format(end) }
+    })
+    return [...adjusted, ...unscheduled]
   })
-  return [...adjusted, ...unscheduled]
 }
 
 export const reorderPlannedStarts = <T extends ReorderablePlan>(plans: T[], draggedRow: number, targetRow: number, placement: 'before' | 'after') => {

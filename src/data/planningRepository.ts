@@ -1,7 +1,7 @@
 import { assignPlanningOrder } from './planningOrder'
 import { makeSequentialSchedule } from './planningSchedule'
 
-export interface PrintPlan { row?: number; order: string; piece: string; quantity: number; details: string; hours: number; minutes: number; pause: number; start: string; end: string; duration: string; status: string; pauseDuring: number; occurrence: string }
+export interface PrintPlan { row?: number; order: string; piece: string; quantity: number; details: string; hours: number; minutes: number; pause: number; start: string; end: string; duration: string; status: string; pauseDuring: number; occurrence: string; printer?: string }
 export const getEndFormula = (row: number) => `=H${row}+E${row}/24+F${row}/1440+L${row}/1440`
 
 type FormulaGrid = { startRow?: number; rowData?: { values?: { userEnteredValue?: { formulaValue?: string } }[] }[] }
@@ -31,6 +31,7 @@ export const mapPlanRow = (row: string[], sheetRow: number): PrintPlan => ({
   status: row[10] || 'Planejado',
   pauseDuring: Number(row[11] || 0),
   occurrence: row[12] || '',
+  printer: row[13] || 'Bambu A1',
 })
 
 export function createPlanningRepository(token: string) {
@@ -41,7 +42,7 @@ export function createPlanningRepository(token: string) {
     return response.json()
   }
   const getPlans = async (): Promise<PrintPlan[]> => {
-    const data = await request('/values/Planejamento!A5:M')
+    const data = await request('/values/Planejamento!A5:N')
     return (data.values || []).map((row: string[], index: number) => mapPlanRow(row, index + 5))
   }
 
@@ -62,7 +63,7 @@ export function createPlanningRepository(token: string) {
         data: [
           { range: `Planejamento!A${plan.row}:H${plan.row}`, values: [[plan.order, plan.piece, plan.quantity, plan.details, plan.hours, plan.minutes, plan.pause, plan.start]] },
           ...endFormula,
-          { range: `Planejamento!K${plan.row}:M${plan.row}`, values: [[plan.status, plan.pauseDuring, plan.occurrence]] },
+          { range: `Planejamento!K${plan.row}:N${plan.row}`, values: [[plan.status, plan.pauseDuring, plan.occurrence, plan.printer || 'Bambu A1']] },
         ],
       }),
     })

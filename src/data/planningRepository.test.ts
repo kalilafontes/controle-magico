@@ -3,9 +3,9 @@ import { createPlanningRepository, findFormulaSourceRow, getEndFormula, mapPlanR
 
 describe('mapPlanRow', () => {
   it('lê quantidade na coluna C após a alteração da planilha', () => {
-    const plan = mapPlanRow(['1', 'Vaso', '3', 'PLA rosa', '2', '30', '5', '28/09/2026 10:00', '28/09/2026 12:35', '2:35', 'Imprimindo', '5', 'Troca de filamento'], 5)
+    const plan = mapPlanRow(['1', 'Vaso', '3', 'PLA rosa', '2', '30', '5', '28/09/2026 10:00', '28/09/2026 12:35', '2:35', 'Imprimindo', '5', 'Troca de filamento', 'Bambu A1 2'], 5)
 
-    expect(plan).toMatchObject({ piece: 'Vaso', quantity: 3, details: 'PLA rosa', hours: 2, status: 'Imprimindo', pauseDuring: 5, occurrence: 'Troca de filamento' })
+    expect(plan).toMatchObject({ piece: 'Vaso', quantity: 3, details: 'PLA rosa', hours: 2, status: 'Imprimindo', pauseDuring: 5, occurrence: 'Troca de filamento', printer: 'Bambu A1 2' })
   })
 })
 
@@ -24,7 +24,7 @@ describe('createPlanningRepository', () => {
 
     await createPlanningRepository('token').getPlans()
 
-    expect(String(fetchMock.mock.calls[0][0])).toContain('/1MxuTek5kmQlXgDerypCeJ8IkY2k-PWBtGMsWw8kOOl8/values/Planejamento!A5:M')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/1MxuTek5kmQlXgDerypCeJ8IkY2k-PWBtGMsWw8kOOl8/values/Planejamento!A5:N')
     fetchMock.mockRestore()
   })
 
@@ -57,7 +57,7 @@ describe('createPlanningRepository', () => {
     ]
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
-      if (url.includes('/values/Planejamento!A5:M')) return response({ values: plans })
+      if (url.includes('/values/Planejamento!A5:N')) return response({ values: plans })
       if (url.includes('includeGridData=true')) return response({ sheets: [{ data: [{ startRow: 4, rowData: [{ values: [{ userEnteredValue: { formulaValue: '=H5' } }, { userEnteredValue: { formulaValue: '=E5' } }] }] }] }] })
       if (url.includes('properties(sheetId,title)')) return response({ sheets: [{ properties: { sheetId: 42, title: 'Planejamento' } }] })
       return response({})

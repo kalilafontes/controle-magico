@@ -38,6 +38,17 @@ describe('makeSequentialSchedule', () => {
     expect(schedule.find(plan => plan.row === 6)).toMatchObject({ start: '29/09/2026 23:19', end: '30/09/2026 07:39' })
   })
 
+  it('calcula as filas das impressoras separadamente', () => {
+    const schedule = makeSequentialSchedule([
+      { row: 5, printer: 'Bambu A1', status: 'Em impressão', start: '29/09/2026 20:14', end: '29/09/2026 23:09', hours: 2, minutes: 55, pause: 0, pauseDuring: 0 },
+      { row: 6, printer: 'Bambu A1', status: 'Planejado', start: '30/09/2026 05:04', end: '', hours: 1, minutes: 0, pause: 10, pauseDuring: 0 },
+      { row: 7, printer: 'Bambu A1 2', status: 'Planejado', start: '29/09/2026 20:14', end: '', hours: 1, minutes: 0, pause: 0, pauseDuring: 0 },
+    ], new Date(2026, 8, 29, 20, 14))
+
+    expect(schedule.find(plan => plan.row === 6)).toMatchObject({ start: '29/09/2026 23:19' })
+    expect(schedule.find(plan => plan.row === 7)).toMatchObject({ start: '29/09/2026 20:14' })
+  })
+
   it('prioriza a impressão em andamento quando ela e a próxima têm o mesmo início', () => {
     const schedule = makeSequentialSchedule([
       { row: 6, status: 'Planejado', start: '29/09/2026 07:30', end: '', hours: 3, minutes: 15, pause: 0, pauseDuring: 0 },

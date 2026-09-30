@@ -670,6 +670,95 @@
     margin-bottom: 20px;
   }
 
+  .printer-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0 0 18px;
+  }
+
+  .printer-card {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    min-height: 118px;
+    padding: 20px 24px;
+    border: 1px solid #f1cadb;
+    border-radius: 18px;
+    background: linear-gradient(110deg, #fff8fc, #fff);
+  }
+
+  .printer-icon {
+    display: grid;
+    flex: 0 0 74px;
+    place-items: center;
+    width: 74px;
+    height: 74px;
+    border-radius: 24px;
+    background: #fde2ee;
+    overflow: hidden;
+  }
+
+  .printer-icon img {
+    display: block;
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+  }
+
+  .printer-card div {
+    display: grid;
+    gap: 7px;
+  }
+
+  .printer-card b {
+    font-size: 20px;
+  }
+
+  .printer-card em {
+    justify-self: start;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: #e4f3ff;
+    color: #205a95;
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 700;
+  }
+
+  .printer-card em.printing {
+    background: #fff0c6;
+    color: #8b5b00;
+  }
+
+  .printer-card small {
+    color: #805b6d;
+    font-size: 14px;
+  }
+
+  .printer-tabs {
+    display: flex;
+    gap: 9px;
+    margin: 0 0 20px;
+  }
+
+  .printer-tabs button {
+    width: auto;
+    margin: 0;
+    padding: 10px 20px;
+    border: 1px solid #efd3e1;
+    border-radius: 999px;
+    background: #fff;
+    color: #805b6d;
+    font-size: 14px;
+  }
+
+  .printer-tabs button.selected {
+    border-color: #c23872;
+    background: #c23872;
+    color: #fff;
+  }
+
   .planning-workspace {
     display: grid;
     grid-template-columns: minmax(360px, 0.9fr) minmax(590px, 1.2fr);
@@ -745,6 +834,18 @@
   .plan-status.pausado {
     background: #fde0ed;
     color: #b2215a;
+  }
+
+  .printer-tag {
+    display: inline-block;
+    margin-left: 7px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: #fde2ee;
+    color: #c23872;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 700;
   }
 
   .planning-details-panel > h2 {
