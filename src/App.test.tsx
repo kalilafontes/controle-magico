@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getQuoteWorkspaceClass, getSaveMessage, LoginScreen, MoneyInput, Navigation, QuoteEditor, QuoteItemsEditor, QuoteList, QuoteSummary } from './App'
+import { filterAndSortQuotes, getQuoteWorkspaceClass, getSaveMessage, LoginScreen, MoneyInput, Navigation, QuoteEditor, QuoteItemsEditor, QuoteList, QuoteSummary } from './App'
 import type { Quote, QuoteItem } from './domain/quote'
 
 afterEach(() => cleanup())
@@ -108,6 +108,17 @@ describe('getSaveMessage', () => {
 })
 
 describe('QuoteList', () => {
+  it('filtra por status e pagamento, priorizando pagos aguardando produção', () => {
+    const quotes = [
+      { id: '1', client: 'Não pago', status: 'Aguardando produção', total: 100, receivedAmount: 0 },
+      { id: '2', client: 'Prioridade', status: 'Aguardando produção', total: 100, receivedAmount: 100 },
+      { id: '3', client: 'Pago entregue', status: 'Entregue', total: 100, receivedAmount: 100 },
+    ] as Quote[]
+
+    expect(filterAndSortQuotes(quotes, 'Todos', 'Todos').map(quote => quote.client)).toEqual(['Prioridade', 'Não pago', 'Pago entregue'])
+    expect(filterAndSortQuotes(quotes, 'Aguardando produção', 'Pago').map(quote => quote.client)).toEqual(['Prioridade'])
+  })
+
   it('oferece uma lixeira separada para pedir a exclusão do orçamento', async () => {
     const user = userEvent.setup()
     const onDelete = vi.fn()

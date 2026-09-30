@@ -16,8 +16,15 @@ import loginPrinter from './assets/pinter-3d.png'
 
 const formatDate = (value: string) => value ? value.split('-').reverse().join('/') : ''
 const isPrinting = (status: string) => ['em impressão', 'imprimindo', 'em andamento'].includes(status.trim().toLowerCase())
+const quoteStatuses: Quote['status'][] = ['Rascunho', 'Enviado', 'Aguardando aprovação', 'Aprovado', 'Aguardando produção', 'Aguardando entrega', 'Entregue', 'Recusado']
+const paymentStatuses = ['Não pago', 'Parcialmente pago', 'Pago'] as const
+type QuoteStatusFilter = Quote['status'] | 'Todos'
+type PaymentStatusFilter = typeof paymentStatuses[number] | 'Todos'
 export const getSaveMessage = (error: unknown) => error instanceof Error && error.message ? `Não foi possível salvar: ${error.message}` : 'Não foi possível salvar. Tente novamente.'
 export const getQuoteWorkspaceClass = (hasSelection: boolean) => hasSelection ? 'quotes-workspace has-selection' : 'quotes-workspace'
+export const filterAndSortQuotes = (quotes: Quote[], status: QuoteStatusFilter, payment: PaymentStatusFilter) => quotes
+  .filter(quote => (status === 'Todos' || quote.status === status) && (payment === 'Todos' || calculatePaymentStatus(quote.total || 0, quote.receivedAmount) === payment))
+  .sort((a, b) => Number(b.status === 'Aguardando produção' && calculatePaymentStatus(b.total || 0, b.receivedAmount) === 'Pago') - Number(a.status === 'Aguardando produção' && calculatePaymentStatus(a.total || 0, a.receivedAmount) === 'Pago'))
 
 export default function App() {
   const [token, setToken] = useState(() => getSavedToken() || '')
@@ -27,6 +34,8 @@ export default function App() {
   const [plans, setPlans] = useState<PrintPlan[]>([])
   const [draft, setDraft] = useState<Quote>(createDraftQuote())
   const [quoteToDelete, setQuoteToDelete] = useState<Quote | null>(null)
+  const [quoteStatusFilter, setQuoteStatusFilter] = useState<QuoteStatusFilter>('Todos')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatusFilter>('Todos')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [message, setMessage] = useState('')
   const [newQuote, setNewQuote] = useState(false)
@@ -94,16 +103,18 @@ export default function App() {
   if (!token) return <LoginScreen onLogin={login} message={message} />
 
   const latestQuotes = quotes.slice(0, 3)
+  const filteredQuotes = filterAndSortQuotes(quotes, quoteStatusFilter, paymentStatusFilter)
   const activePrintsCount = plans.filter(plan => isPrinting(plan.status)).length
   const todayPrints = plans.filter(plan => isPrinting(plan.status) || plan.status === 'Planejado').sort((a, b) => Number(isPrinting(b.status)) - Number(isPrinting(a.status))).slice(0, 3)
   const nav = <Navigation screen={screen} onNavigate={next => { setNewQuote(false); goTo(next) }} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
+  const quoteFilters = <QuoteFilters status={quoteStatusFilter} payment={paymentStatusFilter} onStatusChange={setQuoteStatusFilter} onPaymentChange={setPaymentStatusFilter} />
   const deletionDialog = quoteToDelete && <div className="delete-dialog-backdrop"><section className="delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-quote-title"><h2 id="delete-quote-title">Apagar orçamento de {quoteToDelete.client || 'cliente'}?</h2><p>O orçamento e todos os seus produtos serão removidos da planilha.</p><div className="delete-dialog-actions"><button className="delete-cancel" onClick={() => setQuoteToDelete(null)}>Cancelar</button><button className="delete-confirm" onClick={removeQuote}>Apagar</button></div></section></div>
 
   if (screen === 'planning') return <main className="app app-with-nav"><p className="brand">CONTROLE</p><PlanningScreen token={token} onBack={() => goTo('home')} onUpdated={loadPlans} onSessionExpired={expireSession} />{nav}</main>
 
   if (screen === 'quotes') return <main className="app app-with-nav quotes-page"><p className="brand">CONTROLE</p>
-    <div className="quotes-mobile-view">{newQuote ? <><button className="back" onClick={() => setNewQuote(false)}>← Voltar para orçamentos</button><h1>Editar orçamento</h1>{message && <p className="message">{message}</p>}<QuoteEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setNewQuote(false)} /></> : <><h1>Orçamentos</h1>{message && <p className="message">{message}</p>}<button onClick={openNewQuote}>＋ Novo orçamento</button><section className="home-section"><div className="section-title"><strong>Todos os orçamentos</strong></div><QuoteList quotes={quotes} onEdit={editQuote} onDelete={setQuoteToDelete} /></section></>}</div>
-    <div className="quotes-desktop-view"><header className="quotes-header"><div><h1>Orçamentos</h1><p>Gerencie seus pedidos e pagamentos.</p></div><button className="new-quote" onClick={openNewQuote}>＋ <span>Novo orçamento</span></button></header>{message && <p className="message">{message}</p>}<div className={getQuoteWorkspaceClass(newQuote)}><section className="quote-list-panel"><div className="section-title"><strong>Todos os orçamentos</strong></div><QuoteList quotes={quotes} onEdit={editQuote} onDelete={setQuoteToDelete} selectedId={newQuote ? draft.id : undefined} showTotal /></section>{newQuote && <section className="quote-details-panel"><QuoteEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setNewQuote(false)} /></section>}</div></div>{deletionDialog}{nav}</main>
+    <div className="quotes-mobile-view">{newQuote ? <><button className="back" onClick={() => setNewQuote(false)}>← Voltar para orçamentos</button><h1>Editar orçamento</h1>{message && <p className="message">{message}</p>}<QuoteEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setNewQuote(false)} /></> : <><h1>Orçamentos</h1>{message && <p className="message">{message}</p>}<button onClick={openNewQuote}>＋ Novo orçamento</button><section className="home-section"><div className="section-title"><strong>Todos os orçamentos</strong></div>{quoteFilters}<QuoteList quotes={filteredQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} /></section></>}</div>
+    <div className="quotes-desktop-view"><header className="quotes-header"><div><h1>Orçamentos</h1><p>Gerencie seus pedidos e pagamentos.</p></div><button className="new-quote" onClick={openNewQuote}>＋ <span>Novo orçamento</span></button></header>{message && <p className="message">{message}</p>}<div className={getQuoteWorkspaceClass(newQuote)}><section className="quote-list-panel"><div className="section-title"><strong>Todos os orçamentos</strong></div>{quoteFilters}<QuoteList quotes={filteredQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} selectedId={newQuote ? draft.id : undefined} showTotal /></section>{newQuote && <section className="quote-details-panel"><QuoteEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setNewQuote(false)} /></section>}</div></div>{deletionDialog}{nav}</main>
 
   return <main className="app app-with-nav home-dashboard">
     <p className="brand">CONTROLE</p>
@@ -113,6 +124,10 @@ export default function App() {
     <section className="home-section print-section"><div className="section-title"><strong>Impressões de hoje</strong>{activePrintsCount > 0 && <em className="production-count">{activePrintsCount} em produção</em>}<button onClick={() => goTo('planning')}>Ver todas ›</button></div>{todayPrints.length ? todayPrints.map(plan => <PrintCard key={plan.row} plan={plan} onClick={() => goTo('planning')} />) : <p className="empty">Nenhuma impressão em andamento.</p>}</section></div>
     {deletionDialog}{nav}
   </main>
+}
+
+function QuoteFilters({ status, payment, onStatusChange, onPaymentChange }: { status: QuoteStatusFilter; payment: PaymentStatusFilter; onStatusChange: (status: QuoteStatusFilter) => void; onPaymentChange: (payment: PaymentStatusFilter) => void }) {
+  return <div className="quote-filters"><label>Status<select aria-label="Filtrar por status" value={status} onChange={event => onStatusChange(event.target.value as QuoteStatusFilter)}><option>Todos</option>{quoteStatuses.map(item => <option key={item}>{item}</option>)}</select></label><label>Pagamento<select aria-label="Filtrar por pagamento" value={payment} onChange={event => onPaymentChange(event.target.value as PaymentStatusFilter)}><option>Todos</option>{paymentStatuses.map(item => <option key={item}>{item}</option>)}</select></label></div>
 }
 
 export function QuoteList({ quotes, onEdit, onDelete, selectedId, showTotal = false }: { quotes: Quote[]; onEdit: (quote: Quote) => void; onDelete: (quote: Quote) => void; selectedId?: string; showTotal?: boolean }) {
