@@ -53,6 +53,29 @@ describe('PlanningScreen', () => {
     expect(sortPlansForTab(plans, 'andamento').map(plan => plan.piece)).toEqual(['Caixinha'])
   })
 
+  it('ordena os planejados no mobile pelo horário de início mais próximo', () => {
+    const plans = [
+      { row: 5, piece: 'Por último', start: '30/09/2026 18:00', status: 'Planejado' },
+      { row: 6, piece: 'Primeiro', start: '30/09/2026 09:00', status: 'Planejado' },
+    ] as never[]
+
+    expect(sortPlansForTab(plans, 'proximas').map(plan => plan.piece)).toEqual(['Primeiro', 'Por último'])
+  })
+
+  it('filtra os planejados pela impressora no mobile', async () => {
+    getPlans.mockResolvedValue([
+      { ...planned, printer: 'Bambu A1' },
+      { ...planned, row: 7, piece: 'Mini', printer: 'Bambu A1 2' },
+    ])
+    render(<PlanningScreen token="token" onBack={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Próximas' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Bambu A1 2 (1)' }))
+
+    expect(screen.getByText('Mini')).toBeInTheDocument()
+    expect(screen.queryByText('Dumplin')).not.toBeInTheDocument()
+  })
+
   it('permite arrastar apenas cartões planejados', async () => {
     getPlans.mockResolvedValue([planned, { ...planned, row: 7, piece: 'Em andamento', status: 'Em impressão' }])
     render(<PlanningScreen token="token" onBack={vi.fn()} />)
