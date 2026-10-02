@@ -158,18 +158,36 @@ describe('getQuoteWorkspaceClass', () => {
 })
 
 describe('LoginScreen', () => {
-  it('apresenta o acesso Google e a ilustração da impressora', () => {
-    render(<LoginScreen onLogin={() => undefined} message="" />)
+  it('apresenta e envia credenciais para o login da planilha', async () => {
+    const user = userEvent.setup()
+    const onLogin = vi.fn().mockResolvedValue(undefined)
+    render(<LoginScreen onLogin={onLogin} message="" />)
 
     expect(screen.getByRole('heading', { name: /Controle simples,.*onde você estiver\./ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Entrar com Google' })).toBeInTheDocument()
+    await user.type(screen.getByLabelText('E-mail'), 'kalila.fontes@gmail.com')
+    await user.type(screen.getByLabelText('Senha'), 'magica1')
+    await user.click(screen.getByRole('button', { name: 'Entrar' }))
+    expect(onLogin).toHaveBeenCalledWith('kalila.fontes@gmail.com', 'magica1')
     expect(screen.getByRole('img', { name: 'Impressora e documentos' })).toBeInTheDocument()
   })
 
   it('usa uma ilustração própria na composição de celular', () => {
-    const { container } = render(<LoginScreen onLogin={() => undefined} message="" />)
+    const { container } = render(<LoginScreen onLogin={async () => undefined} message="" />)
 
     expect(container.querySelector('picture.login-illustration source[media="(max-width: 899px)"]')).toBeInTheDocument()
-    expect(container.querySelector('.login-hint-mobile')).toHaveTextContent('Seus dados ficam seguros com o Google.')
+    expect(container.querySelector('.login-hint-mobile')).toHaveTextContent('Acesso restrito à equipe.')
+  })
+
+  it('indica que está entrando enquanto carrega os dados', async () => {
+    const user = userEvent.setup()
+    let finishLogin: (() => void) | undefined
+    render(<LoginScreen onLogin={() => new Promise<void>(resolve => { finishLogin = resolve })} message="" />)
+
+    await user.type(screen.getByLabelText('E-mail'), 'kalila.fontes@gmail.com')
+    await user.type(screen.getByLabelText('Senha'), 'magica1')
+    await user.click(screen.getByRole('button', { name: 'Entrar' }))
+
+    expect(screen.getByRole('button', { name: 'Entrando…' })).toBeDisabled()
+    finishLogin?.()
   })
 })

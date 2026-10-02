@@ -1,0 +1,171 @@
+const USERS_SHEET = 'Usuários';
+const QUOTES_SHEET = 'Orçamentos';
+const ITEMS_SHEET = 'Itens do Orçamento';
+const PLANNING_SHEET = 'Planejamento';
+
+function doPost(event) {
+  try {
+    const request = JSON.parse(event.postData && event.postData.contents || '{}');
+    const action = String(request.action || '');
+    const payload = request.payload || {};
+    if (action === 'login') return json(login(payload));
+    if (action === 'logout') return json(logout(request.token));
+    requireSession(request.token);
+    if (action === 'quotes.list') return json(ok(listQuotes()));
+    if (action === 'quotes.save') return json(ok(saveQuote(payload.quote)));
+    if (action === 'quotes.delete') return json(ok(deleteQuote(payload.quoteId)));
+    if (action === 'plans.list') return json(ok(listPlans()));
+    if (action === 'plans.save') return json(ok(savePlan(payload.plan)));
+    if (action === 'plans.delete') return json(ok(deletePlan(payload.row)));
+    if (action === 'plans.synchronize') return json(ok(synchronizePlans(payload.plans || [])));
+    throw appError('BAD_REQUEST', 'Operação inválida.');
+  } catch (error) {
+    return json({ ok: false, code: error.code || 'ERROR', message: error.message || 'Não foi possível concluir a operação na planilha.' });
+  }
+}
+
+function json(value) {
+  return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function ok(data) { return { ok: true, data: data }; }
+function appError(code, message) { const error = new Error(message); error.code = code; return error; }
+function sheet(name) { return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name) || (() => { throw appError('ERROR', 'Não encontrei a aba ' + name + '.'); })(); }
+function normalizeEmail(value) { return String(value || '').trim().toLowerCase(); }
+function activeValue(value) { return String(value || '').trim().toLowerCase() === 'sim'; }
+
+function findUser(email) {
+  const users = sheet(USERS_SHEET).getDataRange().getDisplayValues();
+  const headers = users.shift() || [];
+  const emailIndex = headers.indexOf('Email');
+  const passwordIndex = headers.indexOf('Senha');
+  const nameIndex = headers.indexOf('Nome');
+  const activeIndex = headers.indexOf('Ativo');
+  if ([emailIndex, passwordIndex, nameIndex, activeIndex].some(index => index < 0)) throw appError('ERROR', 'A aba Usuários precisa ter as colunas Email, Senha, Nome e Ativo.');
+  const row = users.find(values => normalizeEmail(values[emailIndex]) === normalizeEmail(email));
+  return row ? { email: normalizeEmail(row[emailIndex]), password: String(row[passwordIndex]), name: String(row[nameIndex]).trim(), active: activeValue(row[activeIndex]) } : null;
+}
+
+function sessionKey(token) { return 'session:' + String(token || ''); }
+function login(payload) {
+  const user = findUser(payload.email);
+  if (!user || !user.active || user.password !== String(payload.password || '')) throw appError('INVALID_CREDENTIALS', 'E-mail ou senha inválidos.');
+  const token = Utilities.getUuid() + Utilities.getUuid();
+  PropertiesService.getScriptProperties().setProperty(sessionKey(token), JSON.stringify({ email: user.email, name: user.name }));
+  return ok({ token: token, name: user.name });
+}
+
+function requireSession(token) {
+  const saved = PropertiesService.getScriptProperties().getProperty(sessionKey(token));
+  if (!saved) throw appError('UNAUTHORIZED', 'Sua sessão não é mais válida. Entre novamente.');
+  const session = JSON.parse(saved);
+  const user = findUser(session.email);
+  if (!user || !user.active) {
+    PropertiesService.getScriptProperties().deleteProperty(sessionKey(token));
+    throw appError('INACTIVE', 'Seu acesso foi desativado.');
+  }
+  return session;
+}
+
+function logout(token) {
+  if (token) PropertiesService.getScriptProperties().deleteProperty(sessionKey(token));
+  return ok(true);
+}
+
+function isoDate(value) {
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value)) return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const text = String(value || '');
+  const match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return match ? match[3] + '-' + match[2] + '-' + match[1] : text;
+}
+
+function listQuotes() {
+  const quoteRows = valuesFrom(QUOTES_SHEET, 2, 13);
+  const itemRows = valuesFrom(ITEMS_SHEET, 2, 5);
+  return quoteRows.filter(row => row[0]).map((row, index) => ({
+    id: row[0], createdAt: row[1], updatedAt: row[2], client: row[3], phone: row[4], status: row[5], validUntil: row[6],
+    discount: Number(row[8] || 0), total: Number(row[9] || 0), notes: row[10] || '', receivedAmount: Number(row[11] || 0), deliveryDate: isoDate(row[12]),
+    items: itemRows.filter(item => item[0] === row[0]).map((item, itemIndex) => ({ id: 'item-' + (itemIndex + 2), description: item[1] || '', quantity: Number(item[2] || 0), unitPrice: Number(item[3] || 0) })),
+    row: index + 2,
+  }));
+}
+
+function valuesFrom(name, startRow, columns) {
+  const current = sheet(name);
+  const count = current.getLastRow() - startRow + 1;
+  return count > 0 ? current.getRange(startRow, 1, count, columns).getValues() : [];
+}
+
+function displayValuesFrom(name, startRow, columns) {
+  const current = sheet(name);
+  const count = current.getLastRow() - startRow + 1;
+  return count > 0 ? current.getRange(startRow, 1, count, columns).getDisplayValues() : [];
+}
+
+function saveQuote(quote) {
+  if (!quote || !quote.id) throw appError('BAD_REQUEST', 'Orçamento inválido.');
+  const quoteSheet = sheet(QUOTES_SHEET);
+  const itemSheet = sheet(ITEMS_SHEET);
+  const quoteRows = valuesFrom(QUOTES_SHEET, 2, 13);
+  const index = quoteRows.findIndex(row => row[0] === quote.id);
+  const now = new Date().toISOString();
+  const items = (quote.items || []).filter(item => String(item.description || '').trim());
+  if (!items.length || items.some(item => !String(item.description || '').trim() || !isFinite(Number(item.quantity)) || Number(item.quantity) <= 0 || !isFinite(Number(item.unitPrice)) || Number(item.unitPrice) < 0)) throw appError('BAD_REQUEST', 'Preencha os itens com valores válidos.');
+  const subtotal = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0);
+  const row = [quote.id, quote.createdAt || now, now, quote.client || '', quote.phone || '', quote.status || 'Rascunho', quote.validUntil || '', subtotal, Number(quote.discount || 0), Math.max(0, subtotal - Number(quote.discount || 0)), quote.notes || '', Number(quote.receivedAmount || 0), quote.deliveryDate || ''];
+  const rowNumber = index < 0 ? quoteSheet.getLastRow() + 1 : index + 2;
+  quoteSheet.getRange(rowNumber, 1, 1, 13).setValues([row]);
+  const currentItems = valuesFrom(ITEMS_SHEET, 2, 5).map((item, itemIndex) => ({ values: item, row: itemIndex + 2 })).filter(item => item.values[0] === quote.id);
+  currentItems.sort((a, b) => b.row - a.row).forEach(item => itemSheet.deleteRow(item.row));
+  itemSheet.getRange(itemSheet.getLastRow() + 1, 1, items.length, 5).setValues(items.map(item => [quote.id, item.description, Number(item.quantity || 0), Number(item.unitPrice || 0), Number(item.quantity || 0) * Number(item.unitPrice || 0)]));
+  return Object.assign({}, quote, { updatedAt: now, total: Math.max(0, subtotal - Number(quote.discount || 0)), items: items });
+}
+
+function deleteQuote(quoteId) {
+  const quoteRows = valuesFrom(QUOTES_SHEET, 2, 13);
+  const quoteIndex = quoteRows.findIndex(row => row[0] === quoteId);
+  if (quoteIndex < 0) throw appError('BAD_REQUEST', 'Orçamento não encontrado.');
+  valuesFrom(ITEMS_SHEET, 2, 5).map((row, index) => ({ row: index + 2, quoteId: row[0] })).filter(item => item.quoteId === quoteId).sort((a, b) => b.row - a.row).forEach(item => sheet(ITEMS_SHEET).deleteRow(item.row));
+  sheet(QUOTES_SHEET).deleteRow(quoteIndex + 2);
+  return true;
+}
+
+function listPlans() {
+  return displayValuesFrom(PLANNING_SHEET, 5, 14).map((row, index) => planFromRow(row, index + 5)).filter(plan => plan.order || plan.piece);
+}
+
+function planFromRow(row, sheetRow) {
+  return { row: sheetRow, order: row[0] || '', piece: row[1] || '', quantity: Number(row[2] || 1), details: row[3] || '', hours: Number(row[4] || 0), minutes: Number(row[5] || 0), pause: Number(row[6] || 0), start: row[7] || '', end: row[8] || '', duration: row[9] || '', status: row[10] || 'Planejado', pauseDuring: Number(row[11] || 0), occurrence: row[12] || '', printer: row[13] || 'Bambu A1' };
+}
+
+function planEndFormula(row) { return '=H' + row + '+E' + row + '/24+F' + row + '/1440+L' + row + '/1440'; }
+function validPlanRow(row) {
+  const number = Number(row);
+  if (!Number.isInteger(number) || number < 5 || number > sheet(PLANNING_SHEET).getLastRow()) throw appError('BAD_REQUEST', 'Linha de planejamento inválida.');
+  return number;
+}
+function savePlan(plan) {
+  if (!plan) throw appError('BAD_REQUEST', 'Planejamento inválido.');
+  const planning = sheet(PLANNING_SHEET);
+  const row = plan.row ? validPlanRow(plan.row) : planning.getLastRow() + 1;
+  if (!plan.row) {
+    planning.insertRowBefore(row);
+    const source = row > 5 ? row - 1 : row + 1;
+    if (source <= planning.getLastRow()) planning.getRange(source, 9, 1, 2).copyTo(planning.getRange(row, 9, 1, 2), SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
+  }
+  planning.getRange(row, 1, 1, 8).setValues([[plan.order || '', plan.piece || '', Number(plan.quantity || 1), plan.details || '', Number(plan.hours || 0), Number(plan.minutes || 0), Number(plan.pause || 0), plan.start || '']]);
+  planning.getRange(row, 11, 1, 4).setValues([[plan.status || 'Planejado', Number(plan.pauseDuring || 0), plan.occurrence || '', plan.printer || 'Bambu A1']]);
+  if (String(plan.status || '').toLowerCase() === 'planejado') planning.getRange(row, 9).setFormula(planEndFormula(row));
+  return Object.assign({}, plan, { row: row });
+}
+
+function deletePlan(row) { sheet(PLANNING_SHEET).deleteRow(validPlanRow(row)); return true; }
+function synchronizePlans(plans) {
+  plans.filter(plan => plan.row && String(plan.status || '').toLowerCase() === 'planejado').forEach(plan => {
+    const row = validPlanRow(plan.row);
+    sheet(PLANNING_SHEET).getRange(row, 1).setValue(plan.order || '');
+    sheet(PLANNING_SHEET).getRange(row, 8).setValue(plan.start || '');
+    sheet(PLANNING_SHEET).getRange(row, 9).setFormula(planEndFormula(row));
+  });
+  return true;
+}

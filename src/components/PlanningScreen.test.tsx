@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SessionExpiredError } from '../data/appsScriptClient'
 
 const getPlans = vi.fn().mockResolvedValue([])
 const savePlan = vi.fn().mockResolvedValue(undefined)
@@ -10,7 +11,7 @@ vi.mock('../data/planningRepository', () => ({
   createPlanningRepository: () => ({ getPlans, savePlan, deletePlan, synchronizeSchedule }),
 }))
 
-import { getPlanDurationLabel, getPlanEndLabel, getPlanStatusClass, getPlanningWorkspaceClass, PlanningScreen, sortPlansForDesktop, sortPlansForTab } from './PlanningScreen'
+import { getPlanDurationLabel, getPlanEndLabel, getPlanStatusClass, getPlanningWorkspaceClass, PlanningScreen, startPrintingNow, sortPlansForDesktop, sortPlansForTab } from './PlanningScreen'
 
 describe('PlanningScreen', () => {
   const planned = { row: 6, order: '1', piece: 'Dumplin', quantity: 1, details: '', hours: 1, minutes: 0, pause: 0, start: '28/09/2026 10:00', end: '', duration: '', status: 'Planejado', pauseDuring: 0, occurrence: '' }
@@ -22,7 +23,7 @@ describe('PlanningScreen', () => {
     deletePlan.mockClear()
     synchronizeSchedule.mockClear()
   })
-  afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers() })
 
   it('mostra a nova previsão de término ao incluir uma pausa', async () => {
     render(<PlanningScreen token="token" onBack={vi.fn()} />)
@@ -144,8 +145,8 @@ describe('PlanningScreen', () => {
     expect(screen.getByText(/Previsão de término:/)).toHaveTextContent('12:08')
   })
 
-  it('encerra a sessão quando o planejamento retorna 401', async () => {
-    getPlans.mockRejectedValue(Object.assign(new Error('token expirado'), { status: 401 }))
+  it('encerra a sessão quando o Web App recusa a sessão', async () => {
+    getPlans.mockRejectedValue(new SessionExpiredError('token expirado'))
     const onSessionExpired = vi.fn()
 
     render(<PlanningScreen token="token" onBack={vi.fn()} onSessionExpired={onSessionExpired} />)
@@ -191,6 +192,15 @@ describe('PlanningScreen', () => {
       piece: 'Dumplin',
       status: 'Concluído',
     })))
+  })
+
+  it('atualiza o início para a hora atual ao colocar um planejamento em impressão', () => {
+    const plan = startPrintingNow({ ...planned, start: '01/10/2026 08:00' }, new Date(2026, 9, 1, 14, 25))
+
+    expect(plan).toMatchObject({
+      status: 'Em impressão',
+      start: '01/10/2026 14:25',
+    })
   })
 
   it('expande a lista no desktop quando não há planejamento selecionado', () => {

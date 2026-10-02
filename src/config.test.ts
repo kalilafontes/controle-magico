@@ -2,14 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { getAppConfig } from './config'
 
 describe('getAppConfig', () => {
-  it('informa a variável ausente quando não há client ID', () => {
-    expect(() => getAppConfig({})).toThrow('VITE_GOOGLE_CLIENT_ID')
+  it('informa a variável ausente quando não há URL do Apps Script', () => {
+    expect(() => getAppConfig({})).toThrow('VITE_APPS_SCRIPT_URL')
   })
 
   it('retorna a configuração fornecida', () => {
-    expect(getAppConfig({ VITE_GOOGLE_CLIENT_ID: 'id', VITE_GOOGLE_SPREADSHEET_ID: 'planilha' })).toEqual({
-      googleClientId: 'id',
-      spreadsheetId: 'planilha',
+    expect(getAppConfig({ VITE_APPS_SCRIPT_URL: 'https://script.google.com/macros/s/abc/exec' })).toEqual({
+      appsScriptUrl: 'https://script.google.com/macros/s/abc/exec',
     })
   })
 })

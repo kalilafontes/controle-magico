@@ -1,9 +1,10 @@
-import { useEffect, useState, type ComponentType } from 'react'
+import { useEffect, useState, type ComponentType, type FormEvent } from 'react'
 import { getAppConfig } from './config'
-import { clearSavedToken, getGoogleProfileName, getSavedProfileName, getSavedToken, signInWithGoogle } from './auth/googleAuth'
+import { clearSavedSession, getSavedSession, loginWithSheet, logoutWithSheet } from './auth/sheetAuth'
 import { localConfig } from './localConfig'
 import { createSheetsRepository } from './data/sheetsRepository'
 import { createPlanningRepository, type PrintPlan } from './data/planningRepository'
+import { SessionExpiredError } from './data/appsScriptClient'
 import { PlanningScreen } from './components/PlanningScreen'
 import { buildQuoteShareText, calculatePaymentStatus, calculateQuoteTotals, createDraftQuote, getPaymentStatusClass, getQuoteStatusClass, type Quote, type QuoteItem } from './domain/quote'
 import { formatMoneyInput, parseMoneyInput } from './domain/money'
@@ -27,9 +28,8 @@ export const filterAndSortQuotes = (quotes: Quote[], status: QuoteStatusFilter, 
   .sort((a, b) => Number(b.status === 'Aguardando produção' && calculatePaymentStatus(b.total || 0, b.receivedAmount) === 'Pago') - Number(a.status === 'Aguardando produção' && calculatePaymentStatus(a.total || 0, a.receivedAmount) === 'Pago'))
 
 export default function App() {
-  const [token, setToken] = useState(() => getSavedToken() || '')
-  const [profileName, setProfileName] = useState(getSavedProfileName)
-  const [sessionExpired, setSessionExpired] = useState(false)
+  const [token, setToken] = useState(() => getSavedSession()?.token || '')
+  const [profileName, setProfileName] = useState(() => getSavedSession()?.name || '')
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [plans, setPlans] = useState<PrintPlan[]>([])
   const [draft, setDraft] = useState<Quote>(createDraftQuote())
@@ -40,42 +40,33 @@ export default function App() {
   const [message, setMessage] = useState('')
   const [newQuote, setNewQuote] = useState(false)
   const [screen, setScreen] = useState<Screen>(getSavedScreen)
-  const config = getAppConfig({ ...localConfig, VITE_GOOGLE_CLIENT_ID: import.meta.env.VITE_GOOGLE_CLIENT_ID || localConfig.VITE_GOOGLE_CLIENT_ID, VITE_GOOGLE_SPREADSHEET_ID: import.meta.env.VITE_GOOGLE_SPREADSHEET_ID || localConfig.VITE_GOOGLE_SPREADSHEET_ID })
-  const repository = token ? createSheetsRepository(config.spreadsheetId, token) : null
+  const config = getAppConfig({ ...localConfig, VITE_APPS_SCRIPT_URL: import.meta.env.VITE_APPS_SCRIPT_URL || localConfig.VITE_APPS_SCRIPT_URL })
+  const repository = token ? createSheetsRepository(config.appsScriptUrl, token) : null
   const goTo = (nextScreen: Screen) => { saveScreen(nextScreen); setScreen(nextScreen) }
-  const loadPlans = () => token && createPlanningRepository(token).getPlans().then(setPlans).catch(() => undefined)
-
-  useEffect(() => {
-    if (token || sessionExpired) return
-    signInWithGoogle(config.googleClientId, true).then(access => { setToken(access); getGoogleProfileName(access).then(setProfileName) }).catch(() => undefined)
-  }, [token, sessionExpired])
-
-  useEffect(() => {
-    if (!token || profileName) return
-    getGoogleProfileName(token).then(setProfileName).catch(() => undefined)
-  }, [token, profileName])
+  const expireSession = () => { clearSavedSession(); setToken(''); setProfileName(''); setQuotes([]); setPlans([]); setMessage('') }
+  const logout = async () => { if (token) await logoutWithSheet(config.appsScriptUrl, token); expireSession() }
+  const loadPlans = () => token && createPlanningRepository(config.appsScriptUrl, token).getPlans().then(setPlans).catch(error => { if (error instanceof SessionExpiredError) expireSession() })
 
   useEffect(() => {
     if (!repository || !token) return
-    repository.getQuotes().then(setQuotes).catch(() => setMessage('Não foi possível carregar os orçamentos. Entre novamente.'))
+    repository.getQuotes().then(setQuotes).catch(error => { if (error instanceof SessionExpiredError) expireSession(); else setMessage(getSaveMessage(error)) })
     loadPlans()
   }, [token])
 
-  const login = async () => {
+  const login = async (email: string, password: string) => {
     try {
-      const access = await signInWithGoogle(config.googleClientId)
-      setToken(access)
-      setProfileName(await getGoogleProfileName(access))
-      setSessionExpired(false)
-      setQuotes(await createSheetsRepository(config.spreadsheetId, access).getQuotes())
-      setPlans(await createPlanningRepository(access).getPlans())
+      const session = await loginWithSheet(config.appsScriptUrl, email, password)
+      setToken(session.token)
+      setProfileName(session.name)
+      setQuotes(await createSheetsRepository(config.appsScriptUrl, session.token).getQuotes())
+      setPlans(await createPlanningRepository(config.appsScriptUrl, session.token).getPlans())
     } catch (e) {
+      if (e instanceof SessionExpiredError) return expireSession()
       setMessage(e instanceof Error ? e.message : 'Tente novamente.')
     }
   }
 
   const openNewQuote = () => { setDraft(createDraftQuote()); setNewQuote(true); goTo('quotes') }
-  const expireSession = () => { clearSavedToken(); setToken(''); setProfileName(''); setQuotes([]); setPlans([]); setSessionExpired(true); setMessage('') }
   const editQuote = (quote: Quote) => { setDraft(quote); setNewQuote(true); goTo('quotes') }
   const save = async () => {
     try {
@@ -85,6 +76,7 @@ export default function App() {
       setNewQuote(false)
       setMessage('Orçamento salvo na planilha.')
     } catch (error) {
+      if (error instanceof SessionExpiredError) return expireSession()
       setMessage(getSaveMessage(error))
     }
   }
@@ -96,6 +88,7 @@ export default function App() {
       setQuoteToDelete(null)
       setMessage('Orçamento apagado da planilha.')
     } catch (error) {
+      if (error instanceof SessionExpiredError) return expireSession()
       setMessage(getSaveMessage(error))
     }
   }
@@ -110,7 +103,7 @@ export default function App() {
   const quoteFilters = <QuoteFilters status={quoteStatusFilter} payment={paymentStatusFilter} onStatusChange={setQuoteStatusFilter} onPaymentChange={setPaymentStatusFilter} />
   const deletionDialog = quoteToDelete && <div className="delete-dialog-backdrop"><section className="delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-quote-title"><h2 id="delete-quote-title">Apagar orçamento de {quoteToDelete.client || 'cliente'}?</h2><p>O orçamento e todos os seus produtos serão removidos da planilha.</p><div className="delete-dialog-actions"><button className="delete-cancel" onClick={() => setQuoteToDelete(null)}>Cancelar</button><button className="delete-confirm" onClick={removeQuote}>Apagar</button></div></section></div>
 
-  if (screen === 'planning') return <main className="app app-with-nav"><p className="brand">CONTROLE</p><PlanningScreen token={token} onBack={() => goTo('home')} onUpdated={loadPlans} onSessionExpired={expireSession} />{nav}</main>
+  if (screen === 'planning') return <main className="app app-with-nav"><p className="brand">CONTROLE</p><PlanningScreen token={token} appsScriptUrl={config.appsScriptUrl} onBack={() => goTo('home')} onUpdated={loadPlans} onSessionExpired={expireSession} />{nav}</main>
 
   if (screen === 'quotes') return <main className="app app-with-nav quotes-page"><p className="brand">CONTROLE</p>
     <div className="quotes-mobile-view">{newQuote ? <><button className="back" onClick={() => setNewQuote(false)}>← Voltar para orçamentos</button><h1>Editar orçamento</h1>{message && <p className="message">{message}</p>}<QuoteEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setNewQuote(false)} /></> : <><h1>Orçamentos</h1>{message && <p className="message">{message}</p>}<button onClick={openNewQuote}>＋ Novo orçamento</button><section className="home-section"><div className="section-title"><strong>Todos os orçamentos</strong></div>{quoteFilters}<QuoteList quotes={filteredQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} /></section></>}</div>
@@ -118,7 +111,7 @@ export default function App() {
 
   return <main className="app app-with-nav home-dashboard">
     <p className="brand">CONTROLE</p>
-    <header className="home-header"><div><h1>Olá{profileName ? `, ${profileName}` : ''} <span className="heart">♡</span></h1><p className="subtitle">Planejamento de impressão da sua loja ✨</p></div><button className="new-quote" onClick={openNewQuote}>＋ <span>Novo orçamento</span> →</button></header>
+    <header className="home-header"><div><h1>Olá{profileName ? `, ${profileName}` : ''} <span className="heart">♡</span></h1><p className="subtitle">Planejamento de impressão da sua loja ✨</p></div><div className="home-header-actions"><button className="logout" onClick={() => void logout()}>Sair</button><button className="new-quote" onClick={openNewQuote}>＋ <span>Novo orçamento</span> →</button></div></header>
     {message && <p className="message">{message}</p>}
     <div className="dashboard-grid"><section className="home-section"><div className="section-title"><strong>Orçamentos</strong><button onClick={() => goTo('quotes')}>Ver todos ›</button></div><QuoteList quotes={latestQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} /></section>
     <section className="home-section print-section"><div className="section-title"><strong>Impressões de hoje</strong>{activePrintsCount > 0 && <em className="production-count">{activePrintsCount} em produção</em>}<button onClick={() => goTo('planning')}>Ver todas ›</button></div>{todayPrints.length ? todayPrints.map(plan => <PrintCard key={plan.row} plan={plan} onClick={() => goTo('planning')} />) : <p className="empty">Nenhuma impressão em andamento.</p>}</section></div>
@@ -139,8 +132,12 @@ export function Navigation({ screen, onNavigate, collapsed, onCollapsedChange }:
   return <nav className={`bottom-nav ${collapsed ? 'collapsed' : ''}`}><button type="button" className="sidebar-toggle" aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'} title={collapsed ? 'Expandir menu' : 'Recolher menu'} onClick={() => onCollapsedChange(!collapsed)}><i><MenuIcon /></i><span>{collapsed ? 'Expandir' : 'Recolher'}</span></button>{items.map(([id, label, Icon]) => <button key={id} type="button" className={screen === id ? 'active' : ''} title={label} onClick={() => onNavigate(id)}><i><Icon /></i><span>{label}</span></button>)}</nav>
 }
 
-export function LoginScreen({ onLogin, message }: { onLogin: () => void; message: string }) {
-  return <main className="app login-screen"><section className="login-card"><picture className="login-illustration"><source media="(max-width: 899px)" srcSet={loginPrinter} /><img src={loginPrinter} alt="Impressora e documentos" /></picture><div className="login-content"><p className="brand">CONTROLE</p><span className="login-brand-line" /><h1>Controle simples,<br />onde você estiver.</h1><p className="login-subtitle">Acesse seus orçamentos e planejamentos de impressão com praticidade.</p><button className="login-google" onClick={onLogin}><GoogleIcon />Entrar com Google</button><p className="login-hint"><span className="login-hint-desktop">Use sua conta Google para continuar</span><span className="login-hint-mobile">🔒 Seus dados ficam seguros com o Google.</span></p>{message && <p className="message">{message}</p>}</div></section></main>
+export function LoginScreen({ onLogin, message }: { onLogin: (email: string, password: string) => Promise<void>; message: string }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const submit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setLoading(true); try { await onLogin(email, password) } finally { setLoading(false) } }
+  return <main className="app login-screen"><section className="login-card"><picture className="login-illustration"><source media="(max-width: 899px)" srcSet={loginPrinter} /><img src={loginPrinter} alt="Impressora e documentos" /></picture><div className="login-content"><p className="brand">CONTROLE</p><span className="login-brand-line" /><h1>Controle simples,<br />onde você estiver.</h1><p className="login-subtitle">Acesse seus orçamentos e planejamentos de impressão com praticidade.</p><form className="login-form" onSubmit={submit}><label>E-mail<input type="email" value={email} onChange={event => setEmail(event.target.value)} disabled={loading} required /></label><label>Senha<input type="password" value={password} onChange={event => setPassword(event.target.value)} disabled={loading} required /></label><button className="login-google" type="submit" disabled={loading}>{loading ? 'Entrando…' : 'Entrar'}</button></form><p className="login-hint"><span className="login-hint-desktop">Use seu acesso cadastrado para continuar</span><span className="login-hint-mobile">🔒 Acesso restrito à equipe.</span></p>{message && <p className="message">{message}</p>}</div></section></main>
 }
 
 function QuoteCard({ quote, onClick, selected = false, showTotal = false }: { quote: Quote; onClick: () => void; selected?: boolean; showTotal?: boolean }) {
@@ -216,4 +213,3 @@ function HomeIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d
 function QuoteIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 8h6M9 12h6M9 16h4" /></svg> }
 function PrintIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7zM18 11h.01" /></svg> }
 function MenuIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" /></svg> }
-function GoogleIcon() { return <svg className="google-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.8 12.2c0-.7-.1-1.4-.2-2H12v3.7h5.5a4.7 4.7 0 0 1-2 3.1v2.5h3.2c1.9-1.8 3.1-4.4 3.1-7.3Z" /><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.7-2.5l-3.2-2.5c-.9.6-2 .9-3.5.9-2.7 0-5-1.8-5.8-4.3H2.9v2.6A10 10 0 0 0 12 22Z" /><path fill="#FBBC05" d="M6.2 13.6a6 6 0 0 1 0-3.7V7.3H2.9a10 10 0 0 0 0 9l3.3-2.7Z" /><path fill="#EA4335" d="M12 6.1c1.6 0 3 .6 4.1 1.6l3-3A10 10 0 0 0 2.9 7.3l3.3 2.6C7 7.6 9.3 6.1 12 6.1Z" /></svg> }
