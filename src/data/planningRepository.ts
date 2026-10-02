@@ -17,7 +17,7 @@ export function createPlanningRepository(appsScriptUrl: string, token: string) {
     const changed = ordered.some(plan => { const original = originalPlans.find(item => item.row === plan.row); return Boolean(plan.row && plan.status === 'Planejado' && (!original || original.order !== plan.order || original.start !== plan.start || original.end !== plan.end)) })
     if (!changed) return false
     await api.request<boolean>('plans.synchronize', { plans: ordered })
-    return true
+    return ordered
   }
   const savePlan = async (plan: PrintPlan) => {
     if (plan.row) return api.request<PrintPlan>('plans.save', { plan })

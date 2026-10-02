@@ -134,6 +134,24 @@ describe('PlanningScreen', () => {
     ])))
   })
 
+  it('mostra um overlay enquanto confirma a nova ordem na planilha', async () => {
+    const first = { ...planned, start: '29/09/2026 10:00' }
+    const second = { ...planned, row: 7, piece: 'Segundo', start: '29/09/2026 11:00' }
+    let resolveSynchronization: (value: false) => void = () => undefined
+    getPlans.mockResolvedValue([first, second])
+    render(<PlanningScreen token="token" onBack={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Próximas' }))
+    const source = await screen.findByRole('button', { name: /Início: 29\/09\/2026 11:00/ })
+    synchronizeSchedule.mockImplementationOnce(() => new Promise(resolve => { resolveSynchronization = resolve }))
+    fireEvent.dragStart(source)
+    fireEvent.drop(screen.getByRole('button', { name: /Início: 29\/09\/2026 10:00/ }))
+
+    expect(await screen.findByRole('status', { name: 'Reordenando planejamentos…' })).toBeInTheDocument()
+    resolveSynchronization(false)
+    await waitFor(() => expect(screen.queryByRole('status', { name: 'Reordenando planejamentos…' })).not.toBeInTheDocument())
+  })
+
   it('calcula o fim quando o início está só com horário', async () => {
     render(<PlanningScreen token="token" onBack={vi.fn()} />)
     fireEvent.click(await screen.findByRole('button', { name: '＋ Nova impressão' }))

@@ -16,9 +16,11 @@ describe('createPlanningRepository', () => {
     await createPlanningRepository('https://script/exec', 'sessão').savePlan(plan)
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ action: 'plans.save', payload: { plan } })
   })
-  it('sincroniza horários planejados pela ação dedicada', async () => {
+  it('sincroniza horários e mantém a lista calculada sem uma nova leitura', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response({ ok: true, data: true }))
-    await expect(createPlanningRepository('https://script/exec', 'sessão').synchronizeSchedule([{ ...plan, start: '01/10/2026 09:00' }], [plan])).resolves.toBe(true)
+    await expect(createPlanningRepository('https://script/exec', 'sessão').synchronizeSchedule([{ ...plan, start: '01/10/2026 09:00' }], [plan])).resolves.toEqual([
+      expect.objectContaining({ row: plan.row }),
+    ])
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ action: 'plans.synchronize' })
   })
 })

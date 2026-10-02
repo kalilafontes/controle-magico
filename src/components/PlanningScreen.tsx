@@ -128,6 +128,7 @@ export function PlanningScreen({ token, appsScriptUrl = '', onBack, onUpdated, o
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [reordering, setReordering] = useState(false)
   const handleError = (prefix: string, e: unknown) => {
     if (e instanceof SessionExpiredError) return onSessionExpired?.()
     setError(`${prefix}: ${e instanceof Error ? e.message : 'erro desconhecido'}`)
@@ -136,8 +137,9 @@ export function PlanningScreen({ token, appsScriptUrl = '', onBack, onUpdated, o
     if (showLoading) setLoading(true)
     try {
       const current = await repo.getPlans()
-      if (synchronize && await repo.synchronizeSchedule(current)) return load(false, showLoading)
-      setPlans(current)
+      const synchronized = synchronize && await repo.synchronizeSchedule(current)
+      if (Array.isArray(synchronized)) setPlans(synchronized)
+      else setPlans(current)
     } catch (e) {
       handleError('Não foi possível acessar o planejamento', e)
     } finally {
@@ -157,7 +159,9 @@ export function PlanningScreen({ token, appsScriptUrl = '', onBack, onUpdated, o
       const wasAlreadyPrinting = Boolean(original && statusMap.andamento.includes(original.status))
       const planToSave = draft.status === 'Em impressão' && !wasAlreadyPrinting ? startPrintingNow(draft) : draft
       await repo.savePlan({ ...planToSave, end: estimateEnd(planToSave) || planToSave.end })
-      await repo.synchronizeSchedule(await repo.getPlans())
+      const current = await repo.getPlans()
+      const synchronized = await repo.synchronizeSchedule(current)
+      setPlans(Array.isArray(synchronized) ? synchronized : current)
       setDraft(null)
       load()
       onUpdated?.()
@@ -172,7 +176,9 @@ export function PlanningScreen({ token, appsScriptUrl = '', onBack, onUpdated, o
     setSaving(true)
     try {
       await repo.deletePlan(planToDelete.row)
-      await repo.synchronizeSchedule(await repo.getPlans())
+      const current = await repo.getPlans()
+      const synchronized = await repo.synchronizeSchedule(current)
+      setPlans(Array.isArray(synchronized) ? synchronized : current)
       setPlanToDelete(null)
       setDraft(null)
       load()
@@ -198,9 +204,10 @@ export function PlanningScreen({ token, appsScriptUrl = '', onBack, onUpdated, o
     setSaving(true)
     try {
       await repo.savePlan({ ...plan, status: 'Concluído', end: estimateEnd(plan) || plan.end })
-      await repo.synchronizeSchedule(await repo.getPlans())
+      const current = await repo.getPlans()
+      const synchronized = await repo.synchronizeSchedule(current)
+      setPlans(Array.isArray(synchronized) ? synchronized : current)
       setDraft(current => current?.row === plan.row ? null : current)
-      await load()
       onUpdated?.()
     } catch (e) {
       handleError('Não foi possível concluir o planejamento', e)
@@ -217,17 +224,19 @@ export function PlanningScreen({ token, appsScriptUrl = '', onBack, onUpdated, o
     draggedRowRef.current = null
     setDropTarget(null)
     setSaving(true)
+    setReordering(true)
     try {
-      await repo.synchronizeSchedule(reordered, plans)
-      await load()
+      const synchronized = await repo.synchronizeSchedule(reordered, plans)
+      if (Array.isArray(synchronized)) setPlans(synchronized)
       onUpdated?.()
     } catch (e) {
       handleError('Não foi possível reordenar o planejamento', e)
     } finally {
+      setReordering(false)
       setSaving(false)
     }
   }
-  const renderPlanList = (items: PrintPlan[], listTab?: Tab) => loading ? <LoadingSpinner label="Carregando planejamentos…" /> : <><PlanList plans={items} selectedRow={draft?.row} onSelect={selectPlan} onDelete={setPlanToDelete} onDuplicate={duplicatePlan} onComplete={completePlan} onDragStart={row => { draggedRowRef.current = row }} onDragEnd={() => { draggedRowRef.current = null; setDropTarget(null) }} onDragOverPlan={setDropTarget} onDropPlan={movePlan} dropTarget={dropTarget} tab={listTab} busy={saving} />{saving && <LoadingSpinner label="Salvando alteração…" compact />}</>
+  const renderPlanList = (items: PrintPlan[], listTab?: Tab) => loading ? <LoadingSpinner label="Carregando planejamentos…" /> : <div className="planning-list-content"><PlanList plans={items} selectedRow={draft?.row} onSelect={selectPlan} onDelete={setPlanToDelete} onDuplicate={duplicatePlan} onComplete={completePlan} onDragStart={row => { draggedRowRef.current = row }} onDragEnd={() => { draggedRowRef.current = null; setDropTarget(null) }} onDragOverPlan={setDropTarget} onDropPlan={movePlan} dropTarget={dropTarget} tab={listTab} busy={saving} />{reordering && <ReorderingOverlay />}{saving && !reordering && <LoadingSpinner label="Salvando alteração…" compact />}</div>
 
   const printerCount = (printer: string) => plans.filter(plan => (plan.printer || 'Bambu A1') === printer && !['Concluído', 'Cancelado'].includes(plan.status)).length
   const printerCards = <div className="printer-summary">{printers.map(printer => { const running = plans.find(plan => (plan.printer || 'Bambu A1') === printer && statusMap.andamento.includes(plan.status)); const queued = printerCount(printer); return <button key={printer} type="button" className={`printer-card ${printerFilter === printer ? 'selected' : ''}`} aria-label={printer} onClick={() => setPrinterFilter(printer)}><span className="printer-icon"><img src={bambuA1} alt="" /></span><span><b>{printer}</b><em className={running ? 'printing' : ''}>{running ? 'Em impressão' : `${queued} item${queued === 1 ? '' : 's'} na fila`}</em><small>◷ {running ? `Próxima troca às ${getPlanEndLabel(running) || '—'}` : queued ? 'Fila aguardando' : 'Disponível agora'}</small></span></button> })}</div>
@@ -239,6 +248,7 @@ export function PlanningScreen({ token, appsScriptUrl = '', onBack, onUpdated, o
 }
 
 function LoadingSpinner({ label, compact = false }: { label: string; compact?: boolean }) { return <p className={`planning-loading ${compact ? 'compact' : ''}`} role="status"><i aria-hidden="true" />{label}</p> }
+function ReorderingOverlay() { return <div className="planning-reordering-overlay" role="status" aria-label="Reordenando planejamentos…"><i aria-hidden="true" /><span>Reordenando planejamentos…</span></div> }
 
 function PlanList({ plans, selectedRow, onSelect, onDelete, onDuplicate, onComplete, onDragStart, onDragEnd, onDragOverPlan, onDropPlan, dropTarget, tab, busy }: { plans: PrintPlan[]; selectedRow?: number; onSelect: (plan: PrintPlan) => void; onDelete: (plan: PrintPlan) => void; onDuplicate: (plan: PrintPlan) => void; onComplete: (plan: PrintPlan) => void; onDragStart: (row: number) => void; onDragEnd: () => void; onDragOverPlan: (target: { row: number; placement: 'before' | 'after' }) => void; onDropPlan: (plan: PrintPlan, placement: 'before' | 'after') => void; dropTarget: { row: number; placement: 'before' | 'after' } | null; tab?: Tab; busy: boolean }) {
   return plans.length ? <>{plans.map(plan => {

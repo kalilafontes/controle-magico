@@ -161,11 +161,33 @@ function savePlan(plan) {
 
 function deletePlan(row) { sheet(PLANNING_SHEET).deleteRow(validPlanRow(row)); return true; }
 function synchronizePlans(plans) {
-  plans.filter(plan => plan.row && String(plan.status || '').toLowerCase() === 'planejado').forEach(plan => {
-    const row = validPlanRow(plan.row);
-    sheet(PLANNING_SHEET).getRange(row, 1).setValue(plan.order || '');
-    sheet(PLANNING_SHEET).getRange(row, 8).setValue(plan.start || '');
-    sheet(PLANNING_SHEET).getRange(row, 9).setFormula(planEndFormula(row));
+  const planning = sheet(PLANNING_SHEET);
+  const lastRow = planning.getLastRow();
+  const planned = plans.filter(plan => plan.row && String(plan.status || '').toLowerCase() === 'planejado');
+  if (!planned.length) return true;
+
+  const changes = new Map();
+  planned.forEach(plan => {
+    const row = Number(plan.row);
+    if (!Number.isInteger(row) || row < 5 || row > lastRow) throw appError('BAD_REQUEST', 'Linha de planejamento inválida.');
+    changes.set(row, plan);
   });
+
+  const firstRow = Math.min.apply(null, Array.from(changes.keys()));
+  const rowCount = Math.max.apply(null, Array.from(changes.keys())) - firstRow + 1;
+  const orders = planning.getRange(firstRow, 1, rowCount, 1).getValues();
+  const starts = planning.getRange(firstRow, 8, rowCount, 1).getValues();
+  const ends = planning.getRange(firstRow, 9, rowCount, 1).getFormulas();
+
+  changes.forEach((plan, row) => {
+    const index = row - firstRow;
+    orders[index][0] = plan.order || '';
+    starts[index][0] = plan.start || '';
+    ends[index][0] = planEndFormula(row);
+  });
+
+  planning.getRange(firstRow, 1, rowCount, 1).setValues(orders);
+  planning.getRange(firstRow, 8, rowCount, 1).setValues(starts);
+  planning.getRange(firstRow, 9, rowCount, 1).setFormulas(ends);
   return true;
 }
