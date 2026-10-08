@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { filterAndSortQuotes, getQuoteWorkspaceClass, getSaveMessage, LoginScreen, MoneyInput, Navigation, QuoteEditor, QuoteItemsEditor, QuoteList, QuoteSummary } from './App'
+import { filterAndSortQuotes, getQuoteWorkspaceClass, getSaveMessage, LoginScreen, MoneyInput, Navigation, QuoteEditor, QuoteItemsEditor, QuoteList, QuoteSavingOverlay, QuoteSummary } from './App'
 import type { Quote, QuoteItem } from './domain/quote'
 
 afterEach(() => cleanup())
@@ -75,7 +75,21 @@ describe('QuoteSummary', () => {
   })
 })
 
+describe('QuoteSavingOverlay', () => {
+  it('bloqueia a tela e informa que o orçamento está sendo salvo', () => {
+    render(<QuoteSavingOverlay />)
+
+    expect(screen.getByRole('status', { name: 'Salvando orçamento…' })).toBeInTheDocument()
+  })
+})
+
 describe('QuoteEditor', () => {
+  it('permite marcar um orçamento que já está em produção', () => {
+    render(<ShareEditorHarness />)
+
+    expect(screen.getByRole('option', { name: 'Em produção' })).toBeInTheDocument()
+  })
+
   it('abre o compartilhamento padrão sem mudar o status do orçamento', async () => {
     const user = userEvent.setup()
     const share = vi.fn().mockResolvedValue(undefined)
@@ -108,15 +122,19 @@ describe('getSaveMessage', () => {
 })
 
 describe('QuoteList', () => {
-  it('filtra por status e pagamento, priorizando pagos aguardando produção', () => {
+  it('agrupa os pedidos pela prioridade de produção, entrega e pagamento', () => {
     const quotes = [
-      { id: '1', client: 'Não pago', status: 'Aguardando produção', total: 100, receivedAmount: 0 },
-      { id: '2', client: 'Prioridade', status: 'Aguardando produção', total: 100, receivedAmount: 100 },
-      { id: '3', client: 'Pago entregue', status: 'Entregue', total: 100, receivedAmount: 100 },
+      { id: '1', client: 'Rafaela', status: 'Entregue', total: 35, receivedAmount: 35, deliveryDate: '2026-10-04' },
+      { id: '2', client: 'Juliana', status: 'Aguardando aprovação', total: 260, receivedAmount: 0 },
+      { id: '3', client: 'Gaby', status: 'Entregue', total: 75, receivedAmount: 75, deliveryDate: '2026-10-05' },
+      { id: '4', client: 'Letícia', status: 'Rascunho', total: 75, receivedAmount: 0 },
+      { id: '5', client: 'Em produção pago', status: 'Em produção', total: 100, receivedAmount: 100 },
+      { id: '6', client: 'Entrega pendente', status: 'Entregue', total: 100, receivedAmount: 0 },
+      { id: '7', client: 'Recusado pago', status: 'Recusado', total: 100, receivedAmount: 100 },
     ] as Quote[]
 
-    expect(filterAndSortQuotes(quotes, 'Todos', 'Todos').map(quote => quote.client)).toEqual(['Prioridade', 'Não pago', 'Pago entregue'])
-    expect(filterAndSortQuotes(quotes, 'Aguardando produção', 'Pago').map(quote => quote.client)).toEqual(['Prioridade'])
+    expect(filterAndSortQuotes(quotes, 'Todos', 'Todos').map(quote => quote.client)).toEqual(['Em produção pago', 'Juliana', 'Letícia', 'Gaby', 'Rafaela', 'Entrega pendente', 'Recusado pago'])
+    expect(filterAndSortQuotes(quotes, 'Em produção', 'Pago').map(quote => quote.client)).toEqual(['Em produção pago'])
   })
 
   it('oferece uma lixeira separada para pedir a exclusão do orçamento', async () => {

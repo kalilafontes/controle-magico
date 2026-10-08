@@ -1,4 +1,4 @@
-export type QuoteStatus = 'Rascunho' | 'Enviado' | 'Aguardando aprovação' | 'Aprovado' | 'Aguardando produção' | 'Aguardando entrega' | 'Entregue' | 'Recusado'
+export type QuoteStatus = 'Rascunho' | 'Enviado' | 'Aguardando aprovação' | 'Aprovado' | 'Aguardando produção' | 'Em produção' | 'Aguardando entrega' | 'Entregue' | 'Recusado'
 
 export interface QuoteItem {
   id: string
@@ -40,6 +40,7 @@ export const getQuoteStatusClass = (status: QuoteStatus) => ({
   'Aguardando aprovação': 'status-approval',
   Aprovado: 'status-approved',
   'Aguardando produção': 'status-production',
+  'Em produção': 'status-in-production',
   'Aguardando entrega': 'status-delivery',
   Entregue: 'status-delivered',
   Recusado: 'status-rejected',

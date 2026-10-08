@@ -17,15 +17,27 @@ import loginPrinter from './assets/pinter-3d.png'
 
 const formatDate = (value: string) => value ? value.split('-').reverse().join('/') : ''
 const isPrinting = (status: string) => ['em impressão', 'imprimindo', 'em andamento'].includes(status.trim().toLowerCase())
-const quoteStatuses: Quote['status'][] = ['Rascunho', 'Enviado', 'Aguardando aprovação', 'Aprovado', 'Aguardando produção', 'Aguardando entrega', 'Entregue', 'Recusado']
+const quoteStatuses: Quote['status'][] = ['Rascunho', 'Enviado', 'Aguardando aprovação', 'Aprovado', 'Aguardando produção', 'Em produção', 'Aguardando entrega', 'Entregue', 'Recusado']
 const paymentStatuses = ['Não pago', 'Parcialmente pago', 'Pago'] as const
 type QuoteStatusFilter = Quote['status'] | 'Todos'
 type PaymentStatusFilter = typeof paymentStatuses[number] | 'Todos'
 export const getSaveMessage = (error: unknown) => error instanceof Error && error.message ? `Não foi possível salvar: ${error.message}` : 'Não foi possível salvar. Tente novamente.'
 export const getQuoteWorkspaceClass = (hasSelection: boolean) => hasSelection ? 'quotes-workspace has-selection' : 'quotes-workspace'
+const getQuotePriority = (quote: Quote) => {
+  const paid = calculatePaymentStatus(quote.total || 0, quote.receivedAmount) === 'Pago'
+  if (!['Entregue', 'Recusado'].includes(quote.status)) return paid ? 0 : 1
+  if (quote.status === 'Entregue') return paid ? 2 : 3
+  return 4
+}
 export const filterAndSortQuotes = (quotes: Quote[], status: QuoteStatusFilter, payment: PaymentStatusFilter) => quotes
   .filter(quote => (status === 'Todos' || quote.status === status) && (payment === 'Todos' || calculatePaymentStatus(quote.total || 0, quote.receivedAmount) === payment))
-  .sort((a, b) => Number(b.status === 'Aguardando produção' && calculatePaymentStatus(b.total || 0, b.receivedAmount) === 'Pago') - Number(a.status === 'Aguardando produção' && calculatePaymentStatus(a.total || 0, a.receivedAmount) === 'Pago'))
+  .sort((a, b) => {
+    const aPriority = getQuotePriority(a)
+    const priorityDifference = aPriority - getQuotePriority(b)
+    if (priorityDifference) return priorityDifference
+    if (aPriority === 2) return (b.deliveryDate || '').localeCompare(a.deliveryDate || '')
+    return 0
+  })
 
 export default function App() {
   const [token, setToken] = useState(() => getSavedSession()?.token || '')
@@ -38,6 +50,7 @@ export default function App() {
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatusFilter>('Todos')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [message, setMessage] = useState('')
+  const [savingQuote, setSavingQuote] = useState(false)
   const [newQuote, setNewQuote] = useState(false)
   const [screen, setScreen] = useState<Screen>(getSavedScreen)
   const config = getAppConfig({ ...localConfig, VITE_APPS_SCRIPT_URL: import.meta.env.VITE_APPS_SCRIPT_URL || localConfig.VITE_APPS_SCRIPT_URL })
@@ -69,6 +82,7 @@ export default function App() {
   const openNewQuote = () => { setDraft(createDraftQuote()); setNewQuote(true); goTo('quotes') }
   const editQuote = (quote: Quote) => { setDraft(quote); setNewQuote(true); goTo('quotes') }
   const save = async () => {
+    setSavingQuote(true)
     try {
       await repository?.saveQuote(draft)
       setQuotes(current => current.some(item => item.id === draft.id) ? current.map(item => item.id === draft.id ? draft : item) : [draft, ...current])
@@ -78,6 +92,8 @@ export default function App() {
     } catch (error) {
       if (error instanceof SessionExpiredError) return expireSession()
       setMessage(getSaveMessage(error))
+    } finally {
+      setSavingQuote(false)
     }
   }
   const removeQuote = async () => {
@@ -107,7 +123,7 @@ export default function App() {
 
   if (screen === 'quotes') return <main className="app app-with-nav quotes-page"><p className="brand">CONTROLE</p>
     <div className="quotes-mobile-view">{newQuote ? <><button className="back" onClick={() => setNewQuote(false)}>← Voltar para orçamentos</button><h1>Editar orçamento</h1>{message && <p className="message">{message}</p>}<QuoteEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setNewQuote(false)} /></> : <><h1>Orçamentos</h1>{message && <p className="message">{message}</p>}<button onClick={openNewQuote}>＋ Novo orçamento</button><section className="home-section"><div className="section-title"><strong>Todos os orçamentos</strong></div>{quoteFilters}<QuoteList quotes={filteredQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} /></section></>}</div>
-    <div className="quotes-desktop-view"><header className="quotes-header"><div><h1>Orçamentos</h1><p>Gerencie seus pedidos e pagamentos.</p></div><button className="new-quote" onClick={openNewQuote}>＋ <span>Novo orçamento</span></button></header>{message && <p className="message">{message}</p>}<div className={getQuoteWorkspaceClass(newQuote)}><section className="quote-list-panel"><div className="section-title"><strong>Todos os orçamentos</strong></div>{quoteFilters}<QuoteList quotes={filteredQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} selectedId={newQuote ? draft.id : undefined} showTotal /></section>{newQuote && <section className="quote-details-panel"><QuoteEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setNewQuote(false)} /></section>}</div></div>{deletionDialog}{nav}</main>
+    <div className="quotes-desktop-view"><header className="quotes-header"><div><h1>Orçamentos</h1><p>Gerencie seus pedidos e pagamentos.</p></div><button className="new-quote" onClick={openNewQuote}>＋ <span>Novo orçamento</span></button></header>{message && <p className="message">{message}</p>}<div className={getQuoteWorkspaceClass(newQuote)}><section className="quote-list-panel"><div className="section-title"><strong>Todos os orçamentos</strong></div>{quoteFilters}<QuoteList quotes={filteredQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} selectedId={newQuote ? draft.id : undefined} showTotal /></section>{newQuote && <section className="quote-details-panel"><QuoteEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setNewQuote(false)} /></section>}</div></div>{deletionDialog}{savingQuote && <QuoteSavingOverlay />}{nav}</main>
 
   return <main className="app app-with-nav home-dashboard">
     <p className="brand">CONTROLE</p>
@@ -125,6 +141,10 @@ function QuoteFilters({ status, payment, onStatusChange, onPaymentChange }: { st
 
 export function QuoteList({ quotes, onEdit, onDelete, selectedId, showTotal = false }: { quotes: Quote[]; onEdit: (quote: Quote) => void; onDelete: (quote: Quote) => void; selectedId?: string; showTotal?: boolean }) {
   return quotes.length ? <>{quotes.map(quote => <article className={`quote-item ${selectedId === quote.id ? 'selected' : ''}`} key={quote.id}><QuoteCard quote={quote} onClick={() => onEdit(quote)} selected={selectedId === quote.id} showTotal={showTotal} /><button className="quote-delete" aria-label={`Apagar orçamento de ${quote.client || 'cliente'}`} onClick={() => onDelete(quote)}><TrashIcon /></button></article>)}</> : <p className="empty">Nenhum orçamento cadastrado.</p>
+}
+
+export function QuoteSavingOverlay() {
+  return <div className="quote-saving-overlay" role="status" aria-label="Salvando orçamento…"><i aria-hidden="true" /><span>Salvando orçamento…</span></div>
 }
 
 export function Navigation({ screen, onNavigate, collapsed, onCollapsedChange }: { screen: Screen; onNavigate: (screen: Screen) => void; collapsed: boolean; onCollapsedChange: (collapsed: boolean) => void }) {
@@ -181,7 +201,7 @@ export function QuoteEditor({ draft, onChange, onSave, onCancel }: { draft: Quot
     }
   }
   return <><h2 className="quote-details-title">Detalhes do orçamento</h2><section className="form quote-editor-form">
-    <div className="quote-main-fields"><label>Cliente<input value={draft.client} onChange={e => onChange({ ...draft, client: e.target.value })} /></label><label>Status<select value={draft.status} onChange={e => onChange({ ...draft, status: e.target.value as Quote['status'] })}>{['Rascunho', 'Enviado', 'Aguardando aprovação', 'Aprovado', 'Aguardando produção', 'Aguardando entrega', 'Entregue', 'Recusado'].map(status => <option key={status}>{status}</option>)}</select></label><label>Data de entrega<input type="date" value={draft.deliveryDate} onChange={e => onChange({ ...draft, deliveryDate: e.target.value })} /></label></div>
+    <div className="quote-main-fields"><label>Cliente<input value={draft.client} onChange={e => onChange({ ...draft, client: e.target.value })} /></label><label>Status<select value={draft.status} onChange={e => onChange({ ...draft, status: e.target.value as Quote['status'] })}>{quoteStatuses.map(status => <option key={status}>{status}</option>)}</select></label><label>Data de entrega<input type="date" value={draft.deliveryDate} onChange={e => onChange({ ...draft, deliveryDate: e.target.value })} /></label></div>
     <QuoteItemsEditor items={draft.items} onChange={items => onChange({ ...draft, items })} />
     <div className="quote-payment-fields"><MoneyInput label="Desconto" value={draft.discount} onChange={discount => onChange({ ...draft, discount })} /><QuoteSummary items={draft.items} discount={draft.discount} /><MoneyInput label="Valor recebido" value={draft.receivedAmount} onChange={receivedAmount => onChange({ ...draft, receivedAmount })} /><strong className="payment-status">{formatMoneyInput(draft.receivedAmount)} de {formatMoneyInput(total)} · {calculatePaymentStatus(total, draft.receivedAmount)}</strong></div>
     {shareMessage && <p className="message" role="status">{shareMessage}</p>}

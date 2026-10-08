@@ -107,6 +107,11 @@
   color: #b2215a;
 }
 
+.chip.status-in-production {
+  background: #e8e0ff;
+  color: #633ab0;
+}
+
 .chip.status-delivery {
   background: #ffe8d0;
   color: #a44c08;

@@ -26,6 +26,7 @@ describe('orçamentos', () => {
 
   it('atribui cores distintas para cada estágio e pagamento', () => {
     expect(getQuoteStatusClass('Aguardando produção')).toBe('status-production')
+    expect(getQuoteStatusClass('Em produção')).toBe('status-in-production')
     expect(getQuoteStatusClass('Entregue')).toBe('status-delivered')
     expect(getQuoteStatusClass('Recusado')).toBe('status-rejected')
     expect(getPaymentStatusClass('Não pago')).toBe('payment-unpaid')
