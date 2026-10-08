@@ -11,7 +11,7 @@ vi.mock('../data/planningRepository', () => ({
   createPlanningRepository: () => ({ getPlans, savePlan, deletePlan, synchronizeSchedule }),
 }))
 
-import { getPlanDurationLabel, getPlanEndLabel, getPlanStatusClass, getPlanningWorkspaceClass, PlanningScreen, startPrintingNow, sortPlansForDesktop, sortPlansForTab } from './PlanningScreen'
+import { getPlanDurationLabel, getPlanEndLabel, getPlanStatusClass, getPlanningWorkspaceClass, PlanningSavingOverlay, PlanningScreen, startPrintingNow, sortPlansForDesktop, sortPlansForTab } from './PlanningScreen'
 
 describe('PlanningScreen', () => {
   const planned = { row: 6, order: '1', piece: 'Dumplin', quantity: 1, details: '', hours: 1, minutes: 0, pause: 0, start: '28/09/2026 10:00', end: '', duration: '', status: 'Planejado', pauseDuring: 0, occurrence: '' }
@@ -24,6 +24,12 @@ describe('PlanningScreen', () => {
     synchronizeSchedule.mockClear()
   })
   afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers() })
+
+  it('bloqueia a tela enquanto salva um planejamento', () => {
+    render(<PlanningSavingOverlay />)
+
+    expect(screen.getByRole('status', { name: 'Salvando planejamento…' })).toBeInTheDocument()
+  })
 
   it('mostra a nova previsão de término ao incluir uma pausa', async () => {
     render(<PlanningScreen token="token" onBack={vi.fn()} />)

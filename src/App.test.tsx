@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { filterAndSortQuotes, getQuoteWorkspaceClass, getSaveMessage, LoginScreen, MoneyInput, Navigation, QuoteEditor, QuoteItemsEditor, QuoteList, QuoteSavingOverlay, QuoteSummary } from './App'
+import { filterAndSortQuotes, getHomePlans, getHomeQuotes, getQuoteWorkspaceClass, getSaveMessage, LoginScreen, MoneyInput, Navigation, QuoteEditor, QuoteItemsEditor, QuoteList, QuoteSavingOverlay, QuoteSummary } from './App'
 import type { Quote, QuoteItem } from './domain/quote'
+import type { PrintPlan } from './data/planningRepository'
 
 afterEach(() => cleanup())
 
@@ -154,6 +155,30 @@ describe('QuoteList', () => {
     }]} onEdit={() => undefined} onDelete={() => undefined} selectedId="orc-1" />)
 
     expect(container.querySelector('.quote.home-quote')).toHaveAttribute('aria-current', 'true')
+  })
+})
+
+describe('home', () => {
+  it('mostra os orçamentos prioritários na mesma ordem da lista completa', () => {
+    const quotes = [
+      { id: '1', client: 'Entregue', status: 'Entregue', total: 50, receivedAmount: 50, deliveryDate: '2026-10-04' },
+      { id: '2', client: 'Em produção', status: 'Em produção', total: 50, receivedAmount: 50 },
+      { id: '3', client: 'Aguardando', status: 'Aguardando produção', total: 50, receivedAmount: 0 },
+      { id: '4', client: 'Recusado', status: 'Recusado', total: 50, receivedAmount: 50 },
+    ] as Quote[]
+
+    expect(getHomeQuotes(quotes).map(quote => quote.client)).toEqual(['Em produção', 'Aguardando', 'Entregue'])
+  })
+
+  it('mostra a impressão ativa antes das próximas em ordem de início', () => {
+    const plans = [
+      { piece: 'Próxima tarde', status: 'Planejado', start: '08/10/2026 14:00' },
+      { piece: 'Imprimindo', status: 'Em impressão', start: '08/10/2026 08:00' },
+      { piece: 'Próxima manhã', status: 'Planejado', start: '08/10/2026 10:00' },
+      { piece: 'Concluída', status: 'Concluído', start: '08/10/2026 06:00' },
+    ] as PrintPlan[]
+
+    expect(getHomePlans(plans).map(plan => plan.piece)).toEqual(['Imprimindo', 'Próxima manhã', 'Próxima tarde'])
   })
 })
 

@@ -1,0 +1,27 @@
+.planning-saving-overlay {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(255, 250, 253, .76);
+  backdrop-filter: blur(1px);
+  color: #805b6d;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.planning-saving-overlay i {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #f2c5d8;
+  border-top-color: #c23872;
+  border-radius: 50%;
+  animation: planning-saving-spin .7s linear infinite;
+}
+
+@keyframes planning-saving-spin {
+  to { transform: rotate(360deg); }
+}

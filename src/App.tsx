@@ -17,6 +17,12 @@ import loginPrinter from './assets/pinter-3d.png'
 
 const formatDate = (value: string) => value ? value.split('-').reverse().join('/') : ''
 const isPrinting = (status: string) => ['em impressão', 'imprimindo', 'em andamento'].includes(status.trim().toLowerCase())
+const getPlanStartValue = (value: string) => {
+  const match = value.match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/)
+  if (!match) return Number.POSITIVE_INFINITY
+  const [, day, month, year, hour = '00', minute = '00'] = match
+  return new Date(+year, +month - 1, +day, +hour, +minute).getTime()
+}
 const quoteStatuses: Quote['status'][] = ['Rascunho', 'Enviado', 'Aguardando aprovação', 'Aprovado', 'Aguardando produção', 'Em produção', 'Aguardando entrega', 'Entregue', 'Recusado']
 const paymentStatuses = ['Não pago', 'Parcialmente pago', 'Pago'] as const
 type QuoteStatusFilter = Quote['status'] | 'Todos'
@@ -38,6 +44,11 @@ export const filterAndSortQuotes = (quotes: Quote[], status: QuoteStatusFilter, 
     if (aPriority === 2) return (b.deliveryDate || '').localeCompare(a.deliveryDate || '')
     return 0
   })
+export const getHomeQuotes = (quotes: Quote[]) => filterAndSortQuotes(quotes, 'Todos', 'Todos').slice(0, 3)
+export const getHomePlans = (plans: PrintPlan[]) => plans
+  .filter(plan => isPrinting(plan.status) || plan.status === 'Planejado')
+  .sort((a, b) => Number(isPrinting(b.status)) - Number(isPrinting(a.status)) || getPlanStartValue(a.start) - getPlanStartValue(b.start))
+  .slice(0, 3)
 
 export default function App() {
   const [token, setToken] = useState(() => getSavedSession()?.token || '')
@@ -55,14 +66,15 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>(getSavedScreen)
   const config = getAppConfig({ ...localConfig, VITE_APPS_SCRIPT_URL: import.meta.env.VITE_APPS_SCRIPT_URL || localConfig.VITE_APPS_SCRIPT_URL })
   const repository = token ? createSheetsRepository(config.appsScriptUrl, token) : null
-  const goTo = (nextScreen: Screen) => { saveScreen(nextScreen); setScreen(nextScreen) }
   const expireSession = () => { clearSavedSession(); setToken(''); setProfileName(''); setQuotes([]); setPlans([]); setMessage('') }
-  const logout = async () => { if (token) await logoutWithSheet(config.appsScriptUrl, token); expireSession() }
+  const loadQuotes = () => repository?.getQuotes().then(setQuotes).catch(error => { if (error instanceof SessionExpiredError) expireSession(); else setMessage(getSaveMessage(error)) })
   const loadPlans = () => token && createPlanningRepository(config.appsScriptUrl, token).getPlans().then(setPlans).catch(error => { if (error instanceof SessionExpiredError) expireSession() })
+  const goTo = (nextScreen: Screen) => { saveScreen(nextScreen); setScreen(nextScreen); if (nextScreen === 'home') { loadQuotes(); loadPlans() } }
+  const logout = async () => { if (token) await logoutWithSheet(config.appsScriptUrl, token); expireSession() }
 
   useEffect(() => {
     if (!repository || !token) return
-    repository.getQuotes().then(setQuotes).catch(error => { if (error instanceof SessionExpiredError) expireSession(); else setMessage(getSaveMessage(error)) })
+    loadQuotes()
     loadPlans()
   }, [token])
 
@@ -111,10 +123,10 @@ export default function App() {
 
   if (!token) return <LoginScreen onLogin={login} message={message} />
 
-  const latestQuotes = quotes.slice(0, 3)
+  const latestQuotes = getHomeQuotes(quotes)
   const filteredQuotes = filterAndSortQuotes(quotes, quoteStatusFilter, paymentStatusFilter)
   const activePrintsCount = plans.filter(plan => isPrinting(plan.status)).length
-  const todayPrints = plans.filter(plan => isPrinting(plan.status) || plan.status === 'Planejado').sort((a, b) => Number(isPrinting(b.status)) - Number(isPrinting(a.status))).slice(0, 3)
+  const todayPrints = getHomePlans(plans)
   const nav = <Navigation screen={screen} onNavigate={next => { setNewQuote(false); goTo(next) }} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
   const quoteFilters = <QuoteFilters status={quoteStatusFilter} payment={paymentStatusFilter} onStatusChange={setQuoteStatusFilter} onPaymentChange={setPaymentStatusFilter} />
   const deletionDialog = quoteToDelete && <div className="delete-dialog-backdrop"><section className="delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-quote-title"><h2 id="delete-quote-title">Apagar orçamento de {quoteToDelete.client || 'cliente'}?</h2><p>O orçamento e todos os seus produtos serão removidos da planilha.</p><div className="delete-dialog-actions"><button className="delete-cancel" onClick={() => setQuoteToDelete(null)}>Cancelar</button><button className="delete-confirm" onClick={removeQuote}>Apagar</button></div></section></div>
