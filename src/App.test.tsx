@@ -134,8 +134,20 @@ describe('QuoteList', () => {
       { id: '7', client: 'Recusado pago', status: 'Recusado', total: 100, receivedAmount: 100 },
     ] as Quote[]
 
-    expect(filterAndSortQuotes(quotes, 'Todos', 'Todos').map(quote => quote.client)).toEqual(['Em produção pago', 'Juliana', 'Letícia', 'Gaby', 'Rafaela', 'Entrega pendente', 'Recusado pago'])
+    expect(filterAndSortQuotes(quotes, 'Todos', 'Todos').map(quote => quote.client)).toEqual(['Em produção pago', 'Juliana', 'Letícia', 'Rafaela', 'Gaby', 'Entrega pendente', 'Recusado pago'])
     expect(filterAndSortQuotes(quotes, 'Em produção', 'Pago').map(quote => quote.client)).toEqual(['Em produção pago'])
+  })
+
+  it('prioriza pagamentos parciais após os pagos em aguardando produção', () => {
+    const quotes = [
+      { id: '1', client: 'Aguardando aprovação', status: 'Aguardando aprovação', total: 100, receivedAmount: 0 },
+      { id: '2', client: 'Rascunho', status: 'Rascunho', total: 100, receivedAmount: 0 },
+      { id: '3', client: 'Parcialmente pago', status: 'Aguardando produção', total: 100, receivedAmount: 40 },
+      { id: '4', client: 'Pago', status: 'Aguardando produção', total: 100, receivedAmount: 100 },
+      { id: '5', client: 'Não pago', status: 'Aguardando produção', total: 100, receivedAmount: 0 },
+    ] as Quote[]
+
+    expect(filterAndSortQuotes(quotes, 'Todos', 'Todos').map(quote => quote.client)).toEqual(['Pago', 'Parcialmente pago', 'Aguardando aprovação', 'Rascunho', 'Não pago'])
   })
 
   it('oferece uma lixeira separada para pedir a exclusão do orçamento', async () => {
@@ -147,6 +159,17 @@ describe('QuoteList', () => {
 
     await user.click(screen.getByRole('button', { name: 'Apagar orçamento de Kalila' }))
     expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'orc-1' }))
+  })
+
+  it('oferece a criação dos itens de produção a partir do orçamento', async () => {
+    const user = userEvent.setup()
+    const onCreateProduction = vi.fn()
+    render(<QuoteList quotes={[{
+      id: 'orc-1', createdAt: '', updatedAt: '', client: 'Kalila', phone: '', status: 'Aprovado', validUntil: '', items: [{ id: 'item-1', description: 'Vaso', quantity: 1, unitPrice: 35 }], discount: 0, total: 0, receivedAmount: 0, deliveryDate: '', notes: '',
+    }]} onEdit={() => undefined} onDelete={() => undefined} onCreateProduction={onCreateProduction} />)
+
+    await user.click(screen.getByRole('button', { name: 'Criar itens de produção para Kalila' }))
+    expect(onCreateProduction).toHaveBeenCalledWith(expect.objectContaining({ id: 'orc-1' }))
   })
 
   it('marca o orçamento selecionado na lista do painel', () => {

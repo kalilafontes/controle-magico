@@ -8,6 +8,7 @@ import { SessionExpiredError } from './data/appsScriptClient'
 import { PlanningScreen } from './components/PlanningScreen'
 import { CommissionScreen } from './components/CommissionScreen'
 import { buildQuoteShareText, calculatePaymentStatus, calculateQuoteTotals, createDraftQuote, getPaymentStatusClass, getQuoteStatusClass, type Quote, type QuoteItem } from './domain/quote'
+import { createPlansFromQuote } from './domain/production'
 import { formatMoneyInput, parseMoneyInput } from './domain/money'
 import { getSavedScreen, saveScreen, type Screen } from './navigation'
 import { getPrintProgress } from './printProgress'
@@ -31,10 +32,15 @@ type PaymentStatusFilter = typeof paymentStatuses[number] | 'Todos'
 export const getSaveMessage = (error: unknown) => error instanceof Error && error.message ? `Não foi possível salvar: ${error.message}` : 'Não foi possível salvar. Tente novamente.'
 export const getQuoteWorkspaceClass = (hasSelection: boolean) => hasSelection ? 'quotes-workspace has-selection' : 'quotes-workspace'
 const getQuotePriority = (quote: Quote) => {
-  const paid = calculatePaymentStatus(quote.total || 0, quote.receivedAmount) === 'Pago'
-  if (!['Entregue', 'Recusado'].includes(quote.status)) return paid ? 0 : 1
-  if (quote.status === 'Entregue') return paid ? 2 : 3
-  return 4
+  const payment = calculatePaymentStatus(quote.total || 0, quote.receivedAmount)
+  const paid = payment === 'Pago'
+  if (!['Entregue', 'Recusado'].includes(quote.status)) {
+    if (payment === 'Pago') return 0
+    if (quote.status === 'Aguardando produção') return payment === 'Parcialmente pago' ? 1 : 3
+    return 2
+  }
+  if (quote.status === 'Entregue') return paid ? 4 : 5
+  return 6
 }
 export const filterAndSortQuotes = (quotes: Quote[], status: QuoteStatusFilter, payment: PaymentStatusFilter) => quotes
   .filter(quote => (status === 'Todos' || quote.status === status) && (payment === 'Todos' || calculatePaymentStatus(quote.total || 0, quote.receivedAmount) === payment))
@@ -63,6 +69,7 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [message, setMessage] = useState('')
   const [savingQuote, setSavingQuote] = useState(false)
+  const [savingProduction, setSavingProduction] = useState(false)
   const [newQuote, setNewQuote] = useState(false)
   const [screen, setScreen] = useState<Screen>(getSavedScreen)
   const config = getAppConfig({ ...localConfig, VITE_APPS_SCRIPT_URL: import.meta.env.VITE_APPS_SCRIPT_URL || localConfig.VITE_APPS_SCRIPT_URL })
@@ -121,6 +128,23 @@ export default function App() {
       setMessage(getSaveMessage(error))
     }
   }
+  const createProduction = async (quote: Quote) => {
+    const drafts = createPlansFromQuote(quote)
+    if (!drafts.length) return
+    setSavingProduction(true)
+    try {
+      const planningRepository = createPlanningRepository(config.appsScriptUrl, token)
+      const created: PrintPlan[] = []
+      for (const draft of drafts) created.push(await planningRepository.savePlan(draft))
+      setPlans(current => [...current, ...created])
+      goTo('planning')
+    } catch (error) {
+      if (error instanceof SessionExpiredError) return expireSession()
+      setMessage(getSaveMessage(error))
+    } finally {
+      setSavingProduction(false)
+    }
+  }
 
   if (!token) return <LoginScreen onLogin={login} message={message} />
 
@@ -137,14 +161,14 @@ export default function App() {
   if (screen === 'commission') return <main className="app app-with-nav commission-page"><p className="brand">CONTROLE</p><CommissionScreen quotes={quotes} token={token} appsScriptUrl={config.appsScriptUrl} onSessionExpired={expireSession} />{nav}</main>
 
   if (screen === 'quotes') return <main className="app app-with-nav quotes-page"><p className="brand">CONTROLE</p>
-    <div className="quotes-mobile-view">{newQuote ? <><button className="back" onClick={() => setNewQuote(false)}>← Voltar para orçamentos</button><h1>Editar orçamento</h1>{message && <p className="message">{message}</p>}<QuoteEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setNewQuote(false)} /></> : <><h1>Orçamentos</h1>{message && <p className="message">{message}</p>}<button onClick={openNewQuote}>＋ Novo orçamento</button><section className="home-section"><div className="section-title"><strong>Todos os orçamentos</strong></div>{quoteFilters}<QuoteList quotes={filteredQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} /></section></>}</div>
-    <div className="quotes-desktop-view"><header className="quotes-header"><div><h1>Orçamentos</h1><p>Gerencie seus pedidos e pagamentos.</p></div><button className="new-quote" onClick={openNewQuote}>＋ <span>Novo orçamento</span></button></header>{message && <p className="message">{message}</p>}<div className={getQuoteWorkspaceClass(newQuote)}><section className="quote-list-panel"><div className="section-title"><strong>Todos os orçamentos</strong></div>{quoteFilters}<QuoteList quotes={filteredQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} selectedId={newQuote ? draft.id : undefined} showTotal /></section>{newQuote && <section className="quote-details-panel"><QuoteEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setNewQuote(false)} /></section>}</div></div>{deletionDialog}{savingQuote && <QuoteSavingOverlay />}{nav}</main>
+    <div className="quotes-mobile-view">{newQuote ? <><button className="back" onClick={() => setNewQuote(false)}>← Voltar para orçamentos</button><h1>Editar orçamento</h1>{message && <p className="message">{message}</p>}<QuoteEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setNewQuote(false)} /></> : <><h1>Orçamentos</h1>{message && <p className="message">{message}</p>}<button onClick={openNewQuote}>＋ Novo orçamento</button><section className="home-section"><div className="section-title"><strong>Todos os orçamentos</strong></div>{quoteFilters}<QuoteList quotes={filteredQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} onCreateProduction={createProduction} productionBusy={savingProduction} /></section></>}</div>
+    <div className="quotes-desktop-view"><header className="quotes-header"><div><h1>Orçamentos</h1><p>Gerencie seus pedidos e pagamentos.</p></div><button className="new-quote" onClick={openNewQuote}>＋ <span>Novo orçamento</span></button></header>{message && <p className="message">{message}</p>}<div className={getQuoteWorkspaceClass(newQuote)}><section className="quote-list-panel"><div className="section-title"><strong>Todos os orçamentos</strong></div>{quoteFilters}<QuoteList quotes={filteredQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} onCreateProduction={createProduction} productionBusy={savingProduction} selectedId={newQuote ? draft.id : undefined} showTotal /></section>{newQuote && <section className="quote-details-panel"><QuoteEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setNewQuote(false)} /></section>}</div></div>{deletionDialog}{savingQuote && <QuoteSavingOverlay />}{nav}</main>
 
   return <main className="app app-with-nav home-dashboard">
     <p className="brand">CONTROLE</p>
     <header className="home-header"><div><h1>Olá{profileName ? `, ${profileName}` : ''} <span className="heart">♡</span></h1><p className="subtitle">Planejamento de impressão da sua loja ✨</p></div><div className="home-header-actions"><button className="logout" onClick={() => void logout()}>Sair</button><button className="new-quote" onClick={openNewQuote}>＋ <span>Novo orçamento</span> →</button></div></header>
     {message && <p className="message">{message}</p>}
-    <div className="dashboard-grid"><section className="home-section"><div className="section-title"><strong>Orçamentos</strong><button onClick={() => goTo('quotes')}>Ver todos ›</button></div><QuoteList quotes={latestQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} /></section>
+    <div className="dashboard-grid"><section className="home-section"><div className="section-title"><strong>Orçamentos</strong><button onClick={() => goTo('quotes')}>Ver todos ›</button></div><QuoteList quotes={latestQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} onCreateProduction={createProduction} productionBusy={savingProduction} /></section>
     <section className="home-section print-section"><div className="section-title"><strong>Impressões de hoje</strong>{activePrintsCount > 0 && <em className="production-count">{activePrintsCount} em produção</em>}<button onClick={() => goTo('planning')}>Ver todas ›</button></div>{todayPrints.length ? todayPrints.map(plan => <PrintCard key={plan.row} plan={plan} onClick={() => goTo('planning')} />) : <p className="empty">Nenhuma impressão em andamento.</p>}</section></div>
     {deletionDialog}{nav}
   </main>
@@ -154,8 +178,8 @@ function QuoteFilters({ status, payment, onStatusChange, onPaymentChange }: { st
   return <div className="quote-filters"><label>Status<select aria-label="Filtrar por status" value={status} onChange={event => onStatusChange(event.target.value as QuoteStatusFilter)}><option>Todos</option>{quoteStatuses.map(item => <option key={item}>{item}</option>)}</select></label><label>Pagamento<select aria-label="Filtrar por pagamento" value={payment} onChange={event => onPaymentChange(event.target.value as PaymentStatusFilter)}><option>Todos</option>{paymentStatuses.map(item => <option key={item}>{item}</option>)}</select></label></div>
 }
 
-export function QuoteList({ quotes, onEdit, onDelete, selectedId, showTotal = false }: { quotes: Quote[]; onEdit: (quote: Quote) => void; onDelete: (quote: Quote) => void; selectedId?: string; showTotal?: boolean }) {
-  return quotes.length ? <>{quotes.map(quote => <article className={`quote-item ${selectedId === quote.id ? 'selected' : ''}`} key={quote.id}><QuoteCard quote={quote} onClick={() => onEdit(quote)} selected={selectedId === quote.id} showTotal={showTotal} /><button className="quote-delete" aria-label={`Apagar orçamento de ${quote.client || 'cliente'}`} onClick={() => onDelete(quote)}><TrashIcon /></button></article>)}</> : <p className="empty">Nenhum orçamento cadastrado.</p>
+export function QuoteList({ quotes, onEdit, onDelete, onCreateProduction, productionBusy = false, selectedId, showTotal = false }: { quotes: Quote[]; onEdit: (quote: Quote) => void; onDelete: (quote: Quote) => void; onCreateProduction?: (quote: Quote) => void; productionBusy?: boolean; selectedId?: string; showTotal?: boolean }) {
+  return quotes.length ? <>{quotes.map(quote => <article className={`quote-item ${selectedId === quote.id ? 'selected' : ''}`} key={quote.id}><QuoteCard quote={quote} onClick={() => onEdit(quote)} selected={selectedId === quote.id} showTotal={showTotal} />{onCreateProduction && <button className="quote-create-production" aria-label={`Criar itens de produção para ${quote.client || 'cliente'}`} disabled={productionBusy || !quote.items.length} onClick={() => onCreateProduction(quote)}><PrintIcon /></button>}<button className="quote-delete" aria-label={`Apagar orçamento de ${quote.client || 'cliente'}`} onClick={() => onDelete(quote)}><TrashIcon /></button></article>)}</> : <p className="empty">Nenhum orçamento cadastrado.</p>
 }
 
 export function QuoteSavingOverlay() {
