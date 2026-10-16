@@ -6,6 +6,7 @@ import { createSheetsRepository } from './data/sheetsRepository'
 import { createPlanningRepository, type PrintPlan } from './data/planningRepository'
 import { SessionExpiredError } from './data/appsScriptClient'
 import { PlanningScreen } from './components/PlanningScreen'
+import { CommissionScreen } from './components/CommissionScreen'
 import { buildQuoteShareText, calculatePaymentStatus, calculateQuoteTotals, createDraftQuote, getPaymentStatusClass, getQuoteStatusClass, type Quote, type QuoteItem } from './domain/quote'
 import { formatMoneyInput, parseMoneyInput } from './domain/money'
 import { getSavedScreen, saveScreen, type Screen } from './navigation'
@@ -133,6 +134,8 @@ export default function App() {
 
   if (screen === 'planning') return <main className="app app-with-nav"><p className="brand">CONTROLE</p><PlanningScreen token={token} appsScriptUrl={config.appsScriptUrl} onBack={() => goTo('home')} onUpdated={loadPlans} onSessionExpired={expireSession} />{nav}</main>
 
+  if (screen === 'commission') return <main className="app app-with-nav commission-page"><p className="brand">CONTROLE</p><CommissionScreen quotes={quotes} token={token} appsScriptUrl={config.appsScriptUrl} onSessionExpired={expireSession} />{nav}</main>
+
   if (screen === 'quotes') return <main className="app app-with-nav quotes-page"><p className="brand">CONTROLE</p>
     <div className="quotes-mobile-view">{newQuote ? <><button className="back" onClick={() => setNewQuote(false)}>← Voltar para orçamentos</button><h1>Editar orçamento</h1>{message && <p className="message">{message}</p>}<QuoteEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setNewQuote(false)} /></> : <><h1>Orçamentos</h1>{message && <p className="message">{message}</p>}<button onClick={openNewQuote}>＋ Novo orçamento</button><section className="home-section"><div className="section-title"><strong>Todos os orçamentos</strong></div>{quoteFilters}<QuoteList quotes={filteredQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} /></section></>}</div>
     <div className="quotes-desktop-view"><header className="quotes-header"><div><h1>Orçamentos</h1><p>Gerencie seus pedidos e pagamentos.</p></div><button className="new-quote" onClick={openNewQuote}>＋ <span>Novo orçamento</span></button></header>{message && <p className="message">{message}</p>}<div className={getQuoteWorkspaceClass(newQuote)}><section className="quote-list-panel"><div className="section-title"><strong>Todos os orçamentos</strong></div>{quoteFilters}<QuoteList quotes={filteredQuotes} onEdit={editQuote} onDelete={setQuoteToDelete} selectedId={newQuote ? draft.id : undefined} showTotal /></section>{newQuote && <section className="quote-details-panel"><QuoteEditor draft={draft} onChange={setDraft} onSave={save} onCancel={() => setNewQuote(false)} /></section>}</div></div>{deletionDialog}{savingQuote && <QuoteSavingOverlay />}{nav}</main>
@@ -160,7 +163,7 @@ export function QuoteSavingOverlay() {
 }
 
 export function Navigation({ screen, onNavigate, collapsed, onCollapsedChange }: { screen: Screen; onNavigate: (screen: Screen) => void; collapsed: boolean; onCollapsedChange: (collapsed: boolean) => void }) {
-  const items: [Screen, string, ComponentType][] = [['home', 'Início', HomeIcon], ['quotes', 'Orçamentos', QuoteIcon], ['planning', 'Produção', PrintIcon]]
+  const items: [Screen, string, ComponentType][] = [['home', 'Início', HomeIcon], ['quotes', 'Orçamentos', QuoteIcon], ['planning', 'Produção', PrintIcon], ['commission', 'Comissão', CommissionIcon]]
   return <nav className={`bottom-nav ${collapsed ? 'collapsed' : ''}`}><button type="button" className="sidebar-toggle" aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'} title={collapsed ? 'Expandir menu' : 'Recolher menu'} onClick={() => onCollapsedChange(!collapsed)}><i><MenuIcon /></i><span>{collapsed ? 'Expandir' : 'Recolher'}</span></button>{items.map(([id, label, Icon]) => <button key={id} type="button" className={screen === id ? 'active' : ''} title={label} onClick={() => onNavigate(id)}><i><Icon /></i><span>{label}</span></button>)}</nav>
 }
 
@@ -244,4 +247,5 @@ export function QuoteItemsEditor({ items, onChange }: { items: QuoteItem[]; onCh
 function HomeIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V10Z" /></svg> }
 function QuoteIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 8h6M9 12h6M9 16h4" /></svg> }
 function PrintIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7zM18 11h.01" /></svg> }
+function CommissionIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M14.5 9.5c-.5-.8-1.4-1.3-2.5-1.3-1.4 0-2.5.8-2.5 1.9 0 2.7 5 1.2 5 4 0 1.1-1.1 1.9-2.5 1.9-1.1 0-2.1-.5-2.6-1.4M12 6.5v11" /></svg> }
 function MenuIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" /></svg> }

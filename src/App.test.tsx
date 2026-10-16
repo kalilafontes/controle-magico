@@ -183,6 +183,12 @@ describe('home', () => {
 })
 
 describe('Navigation', () => {
+  it('oferece acesso à tela de comissão', () => {
+    render(<Navigation screen={'commission' as never} onNavigate={() => undefined} collapsed={false} onCollapsedChange={() => undefined} />)
+
+    expect(screen.getByRole('button', { name: 'Comissão' })).toBeInTheDocument()
+  })
+
   it('permite recolher a sidebar pelo botão de menu', async () => {
     const user = userEvent.setup()
     const onCollapsedChange = vi.fn()

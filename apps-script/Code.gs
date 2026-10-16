@@ -2,6 +2,9 @@ const USERS_SHEET = 'Usuários';
 const QUOTES_SHEET = 'Orçamentos';
 const ITEMS_SHEET = 'Itens do Orçamento';
 const PLANNING_SHEET = 'Planejamento';
+const COMMISSIONS_SHEET = 'Comissões';
+const COMMISSION_HEADERS = ['ID', 'ID orçamento', 'Cliente', 'ID item', 'Produto', 'Quantidade', 'Valor venda unitário', 'Valor Base Unitário', 'Venda total', 'Valor Total Base', 'Lucro', 'Comissão', 'Status', 'Criado em'];
+const LEGACY_COMMISSION_HEADERS = ['ID', 'ID orçamento', 'Cliente', 'ID item', 'Produto', 'Quantidade', 'Valor venda unitário', 'Custo-base unitário', 'Venda total', 'Custo total', 'Lucro', 'Comissão', 'Status', 'Criado em'];
 
 function doPost(event) {
   try {
@@ -18,6 +21,9 @@ function doPost(event) {
     if (action === 'plans.save') return json(ok(savePlan(payload.plan)));
     if (action === 'plans.delete') return json(ok(deletePlan(payload.row)));
     if (action === 'plans.synchronize') return json(ok(synchronizePlans(payload.plans || [])));
+    if (action === 'commissions.list') return json(ok(listCommissions()));
+    if (action === 'commissions.save') return json(ok(saveCommission(payload.entry)));
+    if (action === 'commissions.status') return json(ok(updateCommissionStatus(payload.id, payload.status)));
     throw appError('BAD_REQUEST', 'Operação inválida.');
   } catch (error) {
     return json({ ok: false, code: error.code || 'ERROR', message: error.message || 'Não foi possível concluir a operação na planilha.' });
@@ -128,6 +134,63 @@ function deleteQuote(quoteId) {
   valuesFrom(ITEMS_SHEET, 2, 5).map((row, index) => ({ row: index + 2, quoteId: row[0] })).filter(item => item.quoteId === quoteId).sort((a, b) => b.row - a.row).forEach(item => sheet(ITEMS_SHEET).deleteRow(item.row));
   sheet(QUOTES_SHEET).deleteRow(quoteIndex + 2);
   return true;
+}
+
+function commissionsSheet() {
+  const commissions = sheet(COMMISSIONS_SHEET);
+  if (!commissions.getLastRow()) {
+    commissions.getRange(1, 1, 1, COMMISSION_HEADERS.length).setValues([COMMISSION_HEADERS]);
+    commissions.setFrozenRows(1);
+    return commissions;
+  }
+  const headers = commissions.getRange(1, 1, 1, COMMISSION_HEADERS.length).getDisplayValues()[0];
+  if (headers.join('|') !== COMMISSION_HEADERS.join('|') && headers.join('|') !== LEGACY_COMMISSION_HEADERS.join('|')) throw appError('ERROR', 'A aba Comissões precisa ter as colunas: ' + COMMISSION_HEADERS.join(', ') + '.');
+  return commissions;
+}
+
+function commissionFromRow(row) {
+  return { id: String(row[0] || ''), quoteId: String(row[1] || ''), client: String(row[2] || ''), itemId: String(row[3] || ''), itemDescription: String(row[4] || ''), quantity: Number(row[5] || 0), saleUnitPrice: Number(row[6] || 0), baseUnitPrice: Number(row[7] || 0), saleTotal: Number(row[8] || 0), costTotal: Number(row[9] || 0), profit: Number(row[10] || 0), commission: Number(row[11] || 0), status: String(row[12] || 'Não pago'), createdAt: String(row[13] || '') };
+}
+
+function listCommissions() {
+  const commissions = commissionsSheet();
+  const count = commissions.getLastRow() - 1;
+  return count > 0 ? commissions.getRange(2, 1, count, COMMISSION_HEADERS.length).getValues().map(commissionFromRow).filter(entry => entry.id) : [];
+}
+
+function commissionNumber(value, label) {
+  const number = Number(value);
+  if (!isFinite(number) || number < 0) throw appError('BAD_REQUEST', label + ' inválido.');
+  return number;
+}
+
+function saveCommission(entry) {
+  if (!entry || !String(entry.id || '').trim() || !String(entry.quoteId || '').trim() || !String(entry.itemId || '').trim()) throw appError('BAD_REQUEST', 'Lançamento de comissão inválido.');
+  const quantity = commissionNumber(entry.quantity, 'Quantidade');
+  if (quantity <= 0) throw appError('BAD_REQUEST', 'Quantidade inválida.');
+  const saleUnitPrice = commissionNumber(entry.saleUnitPrice, 'Valor de venda unitário');
+  const baseUnitPrice = commissionNumber(entry.baseUnitPrice, 'Custo-base unitário');
+  const saleTotal = quantity * saleUnitPrice;
+  const costTotal = quantity * baseUnitPrice;
+  const profit = costTotal * .5;
+  const commission = profit * .25 + (saleTotal - costTotal) * .5;
+  const commissions = commissionsSheet();
+  const existing = listCommissions().find(current => current.id === String(entry.id));
+  if (existing) throw appError('BAD_REQUEST', 'Este lançamento de comissão já existe.');
+  const saved = { id: String(entry.id), quoteId: String(entry.quoteId), client: String(entry.client || ''), itemId: String(entry.itemId), itemDescription: String(entry.itemDescription || ''), quantity: quantity, saleUnitPrice: saleUnitPrice, baseUnitPrice: baseUnitPrice, saleTotal: saleTotal, costTotal: costTotal, profit: profit, commission: commission, status: 'Não pago', createdAt: new Date().toISOString() };
+  commissions.appendRow([saved.id, saved.quoteId, saved.client, saved.itemId, saved.itemDescription, saved.quantity, saved.saleUnitPrice, saved.baseUnitPrice, saved.saleTotal, saved.costTotal, saved.profit, saved.commission, saved.status, saved.createdAt]);
+  return saved;
+}
+
+function updateCommissionStatus(id, status) {
+  const normalizedStatus = String(status || '');
+  if (!['Não pago', 'Pago'].includes(normalizedStatus)) throw appError('BAD_REQUEST', 'Status de comissão inválido.');
+  const commissions = commissionsSheet();
+  const entries = listCommissions();
+  const index = entries.findIndex(entry => entry.id === String(id || ''));
+  if (index < 0) throw appError('BAD_REQUEST', 'Lançamento de comissão não encontrado.');
+  commissions.getRange(index + 2, 13).setValue(normalizedStatus);
+  return Object.assign({}, entries[index], { status: normalizedStatus });
 }
 
 function listPlans() {
