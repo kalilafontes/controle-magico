@@ -26,6 +26,10 @@ describe('createPlanningRepository', () => {
 })
 
 describe('mapPlanRow', () => {
-  it('preserva a impressora vinda da coluna N', () => expect(mapPlanRow(['1', 'Vaso', '3', 'PLA rosa', '2', '30', '5', '', '', '', 'Planejado', '5', '', 'Bambu A1 2'], 5)).toMatchObject({ quantity: 3, printer: 'Bambu A1 2' }))
+  it('converte os nomes antigos das impressoras para os novos nomes', () => {
+    expect(mapPlanRow(['1', 'Vaso', '3', 'PLA rosa', '2', '30', '5', '', '', '', 'Planejado', '5', '', 'Bambu A1'], 5)).toMatchObject({ quantity: 3, printer: 'Osvalda' })
+    expect(mapPlanRow(['1', 'Vaso', '3', 'PLA rosa', '2', '30', '5', '', '', '', 'Planejado', '5', '', 'Bambu A1 2'], 5)).toMatchObject({ quantity: 3, printer: 'Claudinho' })
+  })
+  it('preserva o link do arquivo vindo da coluna O', () => expect(mapPlanRow(['1', 'Vaso', '3', 'PLA rosa', '2', '30', '5', '', '', '', 'Planejado', '5', '', 'Bambu A1', 'https://makerworld.com/modelo'], 5)).toMatchObject({ link: 'https://makerworld.com/modelo' }))
   it('mantém a fórmula de fim sem pausa antes', () => expect(getEndFormula(8)).toBe('=H8+E8/24+F8/1440+L8/1440'))
 })

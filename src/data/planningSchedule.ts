@@ -23,7 +23,7 @@ const endFor = (plan: SchedulablePlan, start: Date) => new Date(start.getTime() 
 export const makeSequentialSchedule = <T extends SchedulablePlan>(plans: T[], now = new Date()) => {
   const byPrinter = new Map<string, T[]>()
   plans.forEach(plan => {
-    const printer = plan.printer || 'Bambu A1'
+    const printer = plan.printer || 'Osvalda'
     byPrinter.set(printer, [...(byPrinter.get(printer) || []), plan])
   })
   return [...byPrinter.values()].flatMap(printerPlans => {

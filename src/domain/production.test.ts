@@ -14,8 +14,8 @@ describe('createPlansFromQuote', () => {
     }
 
     expect(createPlansFromQuote(quote)).toEqual([
-      expect.objectContaining({ piece: 'Vaso geométrico', quantity: 2, details: 'Cliente: Ana', status: 'Planejado', printer: 'Bambu A1' }),
-      expect.objectContaining({ piece: 'Chaveiro', quantity: 10, details: 'Cliente: Ana', status: 'Planejado', printer: 'Bambu A1' }),
+      expect.objectContaining({ piece: 'Vaso geométrico', quantity: 2, details: 'Cliente: Ana', status: 'Planejado', printer: 'Osvalda' }),
+      expect.objectContaining({ piece: 'Chaveiro', quantity: 10, details: 'Cliente: Ana', status: 'Planejado', printer: 'Osvalda' }),
     ])
   })
 })

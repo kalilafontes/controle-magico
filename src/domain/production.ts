@@ -31,5 +31,5 @@ export const createPlansFromQuote = (quote: Quote): ProductionPlanDraft[] => quo
   status: 'Planejado',
   pauseDuring: 0,
   occurrence: '',
-  printer: 'Bambu A1',
+  printer: 'Osvalda',
 }))

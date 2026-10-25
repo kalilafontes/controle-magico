@@ -194,11 +194,18 @@ function updateCommissionStatus(id, status) {
 }
 
 function listPlans() {
-  return displayValuesFrom(PLANNING_SHEET, 5, 14).map((row, index) => planFromRow(row, index + 5)).filter(plan => plan.order || plan.piece);
+  return displayValuesFrom(PLANNING_SHEET, 5, 15).map((row, index) => planFromRow(row, index + 5)).filter(plan => plan.order || plan.piece);
+}
+
+function printerName(value) {
+  const name = String(value || '').trim();
+  if (name === 'Bambu A1') return 'Osvalda';
+  if (name === 'Bambu A1 2') return 'Claudinho';
+  return name || 'Osvalda';
 }
 
 function planFromRow(row, sheetRow) {
-  return { row: sheetRow, order: row[0] || '', piece: row[1] || '', quantity: Number(row[2] || 1), details: row[3] || '', hours: Number(row[4] || 0), minutes: Number(row[5] || 0), pause: Number(row[6] || 0), start: row[7] || '', end: row[8] || '', duration: row[9] || '', status: row[10] || 'Planejado', pauseDuring: Number(row[11] || 0), occurrence: row[12] || '', printer: row[13] || 'Bambu A1' };
+  return { row: sheetRow, order: row[0] || '', piece: row[1] || '', quantity: Number(row[2] || 1), details: row[3] || '', hours: Number(row[4] || 0), minutes: Number(row[5] || 0), pause: Number(row[6] || 0), start: row[7] || '', end: row[8] || '', duration: row[9] || '', status: row[10] || 'Planejado', pauseDuring: Number(row[11] || 0), occurrence: row[12] || '', printer: printerName(row[13]), link: row[14] || '' };
 }
 
 function planEndFormula(row) { return '=H' + row + '+E' + row + '/24+F' + row + '/1440+L' + row + '/1440'; }
@@ -217,7 +224,8 @@ function savePlan(plan) {
     if (source <= planning.getLastRow()) planning.getRange(source, 9, 1, 2).copyTo(planning.getRange(row, 9, 1, 2), SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
   }
   planning.getRange(row, 1, 1, 8).setValues([[plan.order || '', plan.piece || '', Number(plan.quantity || 1), plan.details || '', Number(plan.hours || 0), Number(plan.minutes || 0), Number(plan.pause || 0), plan.start || '']]);
-  planning.getRange(row, 11, 1, 4).setValues([[plan.status || 'Planejado', Number(plan.pauseDuring || 0), plan.occurrence || '', plan.printer || 'Bambu A1']]);
+  planning.getRange(row, 11, 1, 4).setValues([[plan.status || 'Planejado', Number(plan.pauseDuring || 0), plan.occurrence || '', printerName(plan.printer)]]);
+  planning.getRange(row, 15).setValue(plan.link || '');
   if (String(plan.status || '').toLowerCase() === 'planejado') planning.getRange(row, 9).setFormula(planEndFormula(row));
   return Object.assign({}, plan, { row: row });
 }

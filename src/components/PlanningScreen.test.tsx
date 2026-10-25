@@ -45,6 +45,17 @@ describe('PlanningScreen', () => {
     expect(screen.getByText(/Previsão de término:/)).toHaveTextContent('23/09/2026 01:05')
   })
 
+  it('salva o link do arquivo ou modelo no planejamento', async () => {
+    render(<PlanningScreen token="token" onBack={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: '＋ Nova impressão' }))
+
+    fireEvent.change(screen.getByLabelText('Peça / lote'), { target: { value: 'Vaso' } })
+    fireEvent.change(screen.getByLabelText('Link do arquivo / modelo'), { target: { value: 'https://makerworld.com/modelo' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar planejamento' }))
+
+    await waitFor(() => expect(savePlan).toHaveBeenCalledWith(expect.objectContaining({ link: 'https://makerworld.com/modelo' })))
+  })
+
   it('coloca os concluídos mais recentes primeiro', () => {
     const plans = [
       { row: 5, piece: 'Mais antigo', end: '22/09/2026 11:00', status: 'Concluído' },
@@ -71,13 +82,13 @@ describe('PlanningScreen', () => {
 
   it('filtra os planejados pela impressora no mobile', async () => {
     getPlans.mockResolvedValue([
-      { ...planned, printer: 'Bambu A1' },
-      { ...planned, row: 7, piece: 'Mini', printer: 'Bambu A1 2' },
+      { ...planned, printer: 'Osvalda' },
+      { ...planned, row: 7, piece: 'Mini', printer: 'Claudinho' },
     ])
     render(<PlanningScreen token="token" onBack={vi.fn()} />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Próximas' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Bambu A1 2 (1)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Claudinho (1)' }))
 
     expect(screen.getByText('Mini')).toBeInTheDocument()
     expect(screen.queryByText('Dumplin')).not.toBeInTheDocument()
@@ -241,11 +252,11 @@ describe('PlanningScreen', () => {
 
   it('filtra a lista ao selecionar o card de uma impressora', async () => {
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
-    getPlans.mockResolvedValue([{ ...planned, printer: 'Bambu A1' }, { ...planned, row: 7, piece: 'Mini', printer: 'Bambu A1 2' }])
+    getPlans.mockResolvedValue([{ ...planned, printer: 'Osvalda' }, { ...planned, row: 7, piece: 'Mini', printer: 'Claudinho' }])
     render(<PlanningScreen token="token" onBack={vi.fn()} />)
 
-    await screen.findByRole('button', { name: 'Bambu A1 2' })
-    fireEvent.click(screen.getByRole('button', { name: 'Bambu A1 2' }))
+    await screen.findByRole('button', { name: 'Claudinho' })
+    fireEvent.click(screen.getByRole('button', { name: 'Claudinho' }))
 
     expect(screen.getByText('Mini')).toBeInTheDocument()
     expect(screen.queryByText('Dumplin')).not.toBeInTheDocument()
