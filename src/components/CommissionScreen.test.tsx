@@ -45,6 +45,17 @@ describe('CommissionScreen', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('mostra as comissões pendentes antes das pagas e oferece marcá-las como pagas', async () => {
+    const paidEntry = { ...entry, id: 'com-2', itemDescription: 'Peça paga', status: 'Pago' as const }
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(response({ ok: true, data: [paidEntry, entry] }))
+    render(<CommissionScreen quotes={[quote]} appsScriptUrl="https://script/exec" token="sessão" onSessionExpired={() => undefined} />)
+
+    const cards = await screen.findAllByRole('article')
+    expect(cards[0]).toHaveTextContent('Vaso')
+    expect(cards[1]).toHaveTextContent('Peça paga')
+    expect(screen.getByRole('button', { name: 'Marcar como pago' })).toBeInTheDocument()
+  })
+
   it('mostra o carregamento enquanto apaga uma comissão', async () => {
     let finishDeletion: ((value: Response) => void) | undefined
     vi.spyOn(globalThis, 'fetch')
