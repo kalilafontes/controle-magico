@@ -22,4 +22,11 @@ describe('createCommissionRepository', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ action: 'commissions.save', payload: { entry } })
     expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({ action: 'commissions.status', payload: { id: entry.id, status: 'Pago' } })
   })
+
+  it('remove um lançamento pelo Web App', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response({ ok: true, data: true }))
+    await createCommissionRepository('https://script/exec', 'sessão').deleteEntry(entry.id)
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ action: 'commissions.delete', payload: { id: entry.id } })
+  })
 })

@@ -24,6 +24,7 @@ function doPost(event) {
     if (action === 'commissions.list') return json(ok(listCommissions()));
     if (action === 'commissions.save') return json(ok(saveCommission(payload.entry)));
     if (action === 'commissions.status') return json(ok(updateCommissionStatus(payload.id, payload.status)));
+    if (action === 'commissions.delete') return json(ok(deleteCommission(payload.id)));
     throw appError('BAD_REQUEST', 'Operação inválida.');
   } catch (error) {
     return json({ ok: false, code: error.code || 'ERROR', message: error.message || 'Não foi possível concluir a operação na planilha.' });
@@ -191,6 +192,14 @@ function updateCommissionStatus(id, status) {
   if (index < 0) throw appError('BAD_REQUEST', 'Lançamento de comissão não encontrado.');
   commissions.getRange(index + 2, 13).setValue(normalizedStatus);
   return Object.assign({}, entries[index], { status: normalizedStatus });
+}
+
+function deleteCommission(id) {
+  const commissions = commissionsSheet();
+  const index = listCommissions().findIndex(entry => entry.id === String(id || ''));
+  if (index < 0) throw appError('BAD_REQUEST', 'Lançamento de comissão não encontrado.');
+  commissions.deleteRow(index + 2);
+  return true;
 }
 
 function listPlans() {

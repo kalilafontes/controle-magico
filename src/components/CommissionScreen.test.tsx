@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CommissionScreen } from './CommissionScreen'
 import type { Quote } from '../domain/quote'
@@ -33,5 +33,15 @@ describe('CommissionScreen', () => {
 
     expect(screen.getByRole('option', { name: 'Kalila' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'Pedido entregue' })).not.toBeInTheDocument()
+  })
+
+  it('pede confirmação antes de apagar uma comissão', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(response({ ok: true, data: [entry] }))
+    render(<CommissionScreen quotes={[quote]} appsScriptUrl="https://script/exec" token="sessão" onSessionExpired={() => undefined} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Apagar comissão de Kalila' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('Apagar comissão de Kalila?')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

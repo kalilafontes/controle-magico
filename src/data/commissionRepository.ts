@@ -6,5 +6,6 @@ export function createCommissionRepository(appsScriptUrl: string, token: string)
   const getEntries = () => api.request<CommissionEntry[]>('commissions.list')
   const saveEntry = (entry: CommissionEntry) => api.request<CommissionEntry>('commissions.save', { entry })
   const updateStatus = (id: string, status: CommissionStatus) => api.request<CommissionEntry>('commissions.status', { id, status })
-  return { getEntries, saveEntry, updateStatus }
+  const deleteEntry = (id: string) => api.request<boolean>('commissions.delete', { id })
+  return { getEntries, saveEntry, updateStatus, deleteEntry }
 }
