@@ -44,4 +44,19 @@ describe('CommissionScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+
+  it('mostra o carregamento enquanto apaga uma comissão', async () => {
+    let finishDeletion: ((value: Response) => void) | undefined
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(response({ ok: true, data: [entry] }))
+      .mockImplementationOnce(() => new Promise(resolve => { finishDeletion = resolve }))
+    render(<CommissionScreen quotes={[quote]} appsScriptUrl="https://script/exec" token="sessão" onSessionExpired={() => undefined} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Apagar comissão de Kalila' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Apagar' }))
+
+    expect(screen.getByRole('button', { name: 'Apagando…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeDisabled()
+    finishDeletion?.(response({ ok: true, data: true }))
+  })
 })
